@@ -1,7 +1,7 @@
 package oauth2
 
 type OAuth2Info struct {
-	SourceType     string `json:"sourceType,omitempty" gorm:"column:sourceType" bson:"sourceType,omitempty" dynamodbav:"sourceType,omitempty" firestore:"sourceType,omitempty"`
+	Id             string `json:"id,omitempty" gorm:"column:id" bson:"_id,omitempty" dynamodbav:"id,omitempty" firestore:"id,omitempty"`
 	Code           string `json:"code,omitempty" gorm:"column:code" bson:"code,omitempty" dynamodbav:"code,omitempty" firestore:"code,omitempty"`
 	RedirectUri    string `json:"redirectUri,omitempty" gorm:"column:redirecturi" bson:"redirectUri,omitempty" dynamodbav:"redirectUri,omitempty" firestore:"redirectUri,omitempty"`
 	InvitationMail string `json:"invitationMail,omitempty" gorm:"column:invitationmail" bson:"invitationMail,omitempty" dynamodbav:"invitationMail,omitempty" firestore:"invitationMail,omitempty"`
