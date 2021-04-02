@@ -7,37 +7,41 @@ import (
 )
 
 type DefaultOAuth2Service struct {
+	Status                  auth.Status
 	OAuth2UserRepositories  map[string]OAuth2UserRepository
 	UserRepositories        map[string]UserRepository
 	ConfigurationRepository ConfigurationRepository
-	IdGenerator             IdGenerator
+	Generate                func(ctx context.Context) (string, error)
 	TokenService            TokenService
 	TokenConfig             auth.TokenConfig
 	PayloadConfig           auth.PayloadConfig
-	Status                  auth.StatusConfig
-	PrivilegeRepository     auth.PrivilegesLoader
-	AccessTimeRepository    auth.AccessTimeService
+	Privileges              func(ctx context.Context, id string) ([]auth.Privilege, error)
+	AccessTime              func(ctx context.Context, id string) (*auth.AccessTime, error)
 }
 
-func NewOAuth2Service(oauth2UserRepositories map[string]OAuth2UserRepository, userRepositories map[string]UserRepository, integrationConfigurationService ConfigurationRepository, userIdGenerator IdGenerator, tokenGenerator TokenService, tokenConfig auth.TokenConfig, status auth.StatusConfig, privilegeRepository auth.PrivilegesLoader, accessTimeService auth.AccessTimeService) *DefaultOAuth2Service {
-	if userIdGenerator == nil {
-		panic("IdGenerator cannot be nil")
+func NewOAuth2Service(status auth.Status, oauth2UserRepositories map[string]OAuth2UserRepository, userRepositories map[string]UserRepository, configurationRepository ConfigurationRepository, generate func(context.Context) (string, error), tokenService TokenService, tokenConfig auth.TokenConfig, privileges func(context.Context, string) ([]auth.Privilege, error), options ...func(context.Context, string) (*auth.AccessTime, error)) *DefaultOAuth2Service {
+	if generate == nil {
+		panic("Generate cannot be nil")
+	}
+	var loadAccessTime func(context.Context, string) (*auth.AccessTime, error)
+	if len(options) >= 1 {
+		loadAccessTime = options[0]
 	}
 	return &DefaultOAuth2Service{
+		Status:                  status,
 		OAuth2UserRepositories:  oauth2UserRepositories,
 		UserRepositories:        userRepositories,
-		ConfigurationRepository: integrationConfigurationService,
-		IdGenerator:             userIdGenerator,
-		TokenService:            tokenGenerator,
+		ConfigurationRepository: configurationRepository,
+		Generate:                generate,
+		TokenService:            tokenService,
 		TokenConfig:             tokenConfig,
-		Status:                  status,
-		PrivilegeRepository:     privilegeRepository,
-		AccessTimeRepository:    accessTimeService,
+		Privileges:              privileges,
+		AccessTime:              loadAccessTime,
 	}
 }
 func (s *DefaultOAuth2Service) Configurations(ctx context.Context) (*[]Configuration, error) {
-	model, _, err := s.ConfigurationRepository.GetConfigurations(ctx)
-	return model, err
+	models, err := s.ConfigurationRepository.GetConfigurations(ctx)
+	return models, err
 }
 func (s *DefaultOAuth2Service) Configuration(ctx context.Context, id string) (*Configuration, error) {
 	model, _, err := s.ConfigurationRepository.GetConfiguration(ctx, id)
@@ -45,7 +49,7 @@ func (s *DefaultOAuth2Service) Configuration(ctx context.Context, id string) (*C
 }
 
 func (s *DefaultOAuth2Service) Authenticate(ctx context.Context, info OAuth2Info, authorization string) (auth.AuthResult, error) {
-	result := auth.AuthResult{Status: auth.StatusFail}
+	result := auth.AuthResult{Status: s.Status.Fail}
 	var linkUserId = ""
 	if info.Link {
 		if len(authorization) == 0 {
@@ -57,7 +61,7 @@ func (s *DefaultOAuth2Service) Authenticate(ctx context.Context, info OAuth2Info
 			token := authorization[7:]
 			_, _, _, er0 := s.TokenService.VerifyToken(token, s.TokenConfig.Secret)
 			if er0 != nil {
-				result.Status = auth.StatusSystemError
+				result.Status = s.Status.Error
 				return result, er0
 			}
 			linkUserId = s.getStringValue(token, "userId") // TODO
@@ -86,20 +90,20 @@ func (s *DefaultOAuth2Service) getStringValue(tokenData interface{}, field strin
 }
 func (s *DefaultOAuth2Service) buildResult(ctx context.Context, id, email, displayName string, sourceType string, accessToken string, newUser bool) (auth.AuthResult, error) {
 	user := auth.AccessTime{}
-	result := auth.AuthResult{Status: auth.StatusSystemError}
-	if s.AccessTimeRepository != nil {
-		accessTime, er1 := s.AccessTimeRepository.Load(ctx, id)
+	result := auth.AuthResult{Status: s.Status.Error}
+	if s.AccessTime != nil {
+		accessTime, er1 := s.AccessTime(ctx, id)
 		if er1 != nil {
 			return result, er1
 		}
 		if accessTime != nil {
 			user = *accessTime
 			if !auth.IsAccessDateValid(accessTime.AccessDateFrom, accessTime.AccessDateTo) {
-				result := auth.AuthResult{Status: auth.StatusDisabled}
+				result := auth.AuthResult{Status: s.Status.Disabled}
 				return result, nil
 			}
 			if !auth.IsAccessTimeValid(accessTime.AccessTimeFrom, accessTime.AccessTimeTo) {
-				result := auth.AuthResult{Status: auth.StatusAccessTimeLocked}
+				result := auth.AuthResult{Status: s.Status.AccessTimeLocked}
 				return result, nil
 			}
 		}
@@ -120,21 +124,20 @@ func (s *DefaultOAuth2Service) buildResult(ctx context.Context, id, email, displ
 	}
 	var account auth.UserAccount
 	account.Username = email
-	account.UserId = id
+	account.Id = id
 	account.Contact = email
 	account.DisplayName = displayName
 	account.Token = token
-	account.NewUser = false
 	account.TokenExpiredTime = &tokenExpiredTime
 
-	if s.PrivilegeRepository != nil {
-		privileges, er1 := s.PrivilegeRepository.Load(ctx, id)
+	if s.Privileges != nil {
+		privileges, er1 := s.Privileges(ctx, id)
 		if er1 != nil {
 			return result, er1
 		}
-		account.Privileges = &privileges
+		account.Privileges = privileges
 	}
-	result.Status = auth.StatusSuccess
+	result.Status = s.Status.Success
 	result.User = &account
 	return result, nil
 }
@@ -146,7 +149,7 @@ func (s *DefaultOAuth2Service) processAccount(ctx context.Context, data OAuth2In
 	repository := s.OAuth2UserRepositories[data.Id]
 	user, accessToken, err := repository.GetUserFromOAuth2(ctx, urlRedirect, clientId, clientSecret, code)
 	if err != nil || user == nil {
-		result := auth.AuthResult{Status: auth.StatusSystemError}
+		result := auth.AuthResult{Status: s.Status.Error}
 		return result, err
 	}
 	return s.checkAccount(ctx, *user, accessToken, linkUserId, data.Id)
@@ -155,13 +158,13 @@ func (s *DefaultOAuth2Service) processAccount(ctx context.Context, data OAuth2In
 func (s *DefaultOAuth2Service) checkAccount(ctx context.Context, user User, accessToken string, linkUserId string, types string) (auth.AuthResult, error) {
 	personRepository := s.UserRepositories[types]
 	eId, disable, suspended, er0 := personRepository.GetUser(ctx, user.Email) //i
-	result := auth.AuthResult{Status: auth.StatusSystemError}
+	result := auth.AuthResult{Status: s.Status.Error}
 	if er0 != nil {
 		return result, er0
 	}
 	if len(linkUserId) > 0 {
 		if eId != linkUserId {
-			result := auth.AuthResult{Status: auth.StatusFail}
+			result := auth.AuthResult{Status: s.Status.Fail}
 			return result, nil
 		}
 		ok1, er2 := personRepository.Update(ctx, linkUserId, user.Email, user.Account)
@@ -169,8 +172,14 @@ func (s *DefaultOAuth2Service) checkAccount(ctx context.Context, user User, acce
 			return s.buildResult(ctx, eId, user.Email, user.DisplayName, types, accessToken, false)
 		}
 	}
+	if len(eId) != 0 {
+		ok1, er2 := personRepository.Update(ctx, linkUserId, user.Email, user.Account)
+		if ok1 && er2 == nil {
+			return s.buildResult(ctx, eId, user.Email, user.DisplayName, types, accessToken, false)
+		}
+	}
 	if len(eId) == 0 {
-		userId, er3 := s.IdGenerator.Generate(ctx)
+		userId, er3 := s.Generate(ctx)
 		if er3 != nil {
 			return result, er3
 		}
@@ -179,7 +188,7 @@ func (s *DefaultOAuth2Service) checkAccount(ctx context.Context, user User, acce
 			i := 1
 			for duplicate && i <= 5 {
 				i++
-				userId, er3 = s.IdGenerator.Generate(ctx)
+				userId, er3 = s.Generate(ctx)
 				if er3 != nil {
 					return result, er3
 				}
@@ -198,11 +207,11 @@ func (s *DefaultOAuth2Service) checkAccount(ctx context.Context, user User, acce
 		return result, er4
 	}
 	if disable {
-		result.Status = auth.StatusDisabled
+		result.Status = s.Status.Disabled
 		return result, nil
 	}
 	if suspended {
-		result.Status = auth.StatusSuspended
+		result.Status = s.Status.Suspended
 		return result, nil
 	}
 

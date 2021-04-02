@@ -1,14 +1,14 @@
 # OAuth2
 ## Models
-- IntegrationConfiguration
+- Configuration
 - OAuth2Info
 - User
 
 ## Services
-- OAuth2IntegrationService
+- OAuth2Service
 
 ## Repositories
-- IntegrationConfigurationRepository
+- ConfigurationRepository
 - OAuth2UserRepository
 - UserRepository
 
@@ -27,7 +27,7 @@ import "github.com/common-go/oauth2"
 ```
 
 ## Implementations of UserRepository and IntegrationConfigurationRepository
-- [sql](https://github.com/common-go/oauth2-sql): requires [gorm](https://github.com/go-gorm/gorm)
+- sql: SqlUserRepository and SqlConfigurationRepository
 - [mongo](https://github.com/common-go/oauth2-mongo)
 - [dynamodb](https://github.com/common-go/oauth2-dynamodb)
 - [firestore](https://github.com/common-go/oauth2-firestore)

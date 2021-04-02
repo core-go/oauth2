@@ -3,37 +3,57 @@ package oauth2
 import (
 	"context"
 	"encoding/json"
-	"github.com/common-go/auth"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
 )
 
-type OAuth2ActivityLogWriter interface {
-	Write(ctx context.Context, resource string, action string, success bool, desc string) error
+type Oauth2ActionConfig struct {
+	Ip             string `mapstructure:"ip"`
+	Resource       string `mapstructure:"resource"`
+	Authenticate   string `mapstructure:"authenticate"`
+	Configuration  string `mapstructure:"configuration"`
+	Configurations string `mapstructure:"configurations"`
 }
-
 type OAuth2Handler struct {
 	OAuth2Service OAuth2Service
-	Resource      string
-	Action        string
-	LogError      func(context.Context, string)
-	Ip            string
-	LogWriter     OAuth2ActivityLogWriter
+	SystemError   int
+	Error         func(context.Context, string)
+	Config        Oauth2ActionConfig
+	Log           func(ctx context.Context, resource string, action string, success bool, desc string) error
 }
 
-func NewOAuth2Handler(oAuth2IntegrationService OAuth2Service, resource string, action string, logError func(context.Context, string), ip string, logService OAuth2ActivityLogWriter) *OAuth2Handler {
-	if len(resource) == 0 {
-		resource = "oauth2"
+func NewDefaultOAuth2Handler(oauth2Service OAuth2Service, systemError int, logError func(context.Context, string)) *OAuth2Handler {
+	return NewOAuth2Handler(oauth2Service, systemError, logError, nil)
+}
+
+func NewOAuth2Handler(oauth2Service OAuth2Service, systemError int, logError func(context.Context, string), writeLog func(context.Context, string, string, bool, string) error, options ...Oauth2ActionConfig) *OAuth2Handler {
+	var c Oauth2ActionConfig
+	if len(options) >= 1 {
+		conf := options[0]
+		c.Ip = conf.Ip
+		c.Resource = conf.Resource
+		c.Authenticate = conf.Authenticate
+		c.Configuration = conf.Configuration
+		c.Configurations = conf.Configurations
 	}
-	if len(action) == 0 {
-		action = "authenticate"
+	if len(c.Ip) == 0 {
+		c.Ip = "ip"
 	}
-	if len(ip) == 0 {
-		ip = "ip"
+	if len(c.Resource) == 0 {
+		c.Resource = "oauth2"
 	}
-	return &OAuth2Handler{OAuth2Service: oAuth2IntegrationService, Resource: resource, Action: action, LogError: logError, Ip: ip, LogWriter: logService}
+	if len(c.Authenticate) == 0 {
+		c.Authenticate = "authenticate"
+	}
+	if len(c.Configuration) == 0 {
+		c.Configuration = "configuration"
+	}
+	if len(c.Configurations) == 0 {
+		c.Configurations = "configurations"
+	}
+	return &OAuth2Handler{OAuth2Service: oauth2Service, SystemError: systemError, Config: c, Error: logError, Log: writeLog}
 }
 func (h *OAuth2Handler) Configuration(w http.ResponseWriter, r *http.Request) {
 	id := ""
@@ -45,43 +65,44 @@ func (h *OAuth2Handler) Configuration(w http.ResponseWriter, r *http.Request) {
 	} else {
 		b, er1 := ioutil.ReadAll(r.Body)
 		if er1 != nil {
-			respondString(w, r, http.StatusBadRequest, "Body cannot is empty")
+			http.Error(w, "body cannot is empty", http.StatusBadRequest)
 			return
 		}
 		id = strings.Trim(string(b), " ")
 	}
 	if len(id) == 0 {
-		respondString(w, r, http.StatusBadRequest, "request cannot is empty")
+		http.Error(w, "request cannot is empty", http.StatusBadRequest)
 		return
 	}
 	model, err := h.OAuth2Service.Configuration(r.Context(), id)
 	if err != nil {
-		return
-		if h.LogError != nil {
-			h.LogError(r.Context(), err.Error())
+		if h.Error != nil {
+			h.Error(r.Context(), err.Error())
 		}
-		respond(w, r, http.StatusOK, nil, h.LogWriter, h.Resource, h.Action, false, err.Error())
+		respond(w, r, http.StatusOK, nil, h.Log, h.Config.Resource, h.Config.Configuration, false, err.Error())
 	} else {
-		respond(w, r, http.StatusOK, model, h.LogWriter, h.Resource, "configuration", true, "")
+		respond(w, r, http.StatusOK, model, h.Log, h.Config.Resource, h.Config.Configuration, true, "")
 	}
 }
 func (h *OAuth2Handler) Configurations(w http.ResponseWriter, r *http.Request) {
 	model, err := h.OAuth2Service.Configurations(r.Context())
 	if err != nil {
-		return
-		if h.LogError != nil {
-			h.LogError(r.Context(), err.Error())
+		if h.Error != nil {
+			h.Error(r.Context(), err.Error())
 		}
-		respond(w, r, http.StatusOK, nil, h.LogWriter, h.Resource, h.Action, false, err.Error())
+		respond(w, r, http.StatusOK, nil, h.Log, h.Config.Resource, h.Config.Configurations, false, err.Error())
 	} else {
-		respond(w, r, http.StatusOK, model, h.LogWriter, h.Resource, "configuration", true, "")
+		respond(w, r, http.StatusOK, model, h.Log, h.Config.Resource, h.Config.Configurations, true, "")
 	}
 }
 func (h *OAuth2Handler) Authenticate(w http.ResponseWriter, r *http.Request) {
 	var request OAuth2Info
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
-		respondString(w, r, http.StatusBadRequest, "Cannot decode OAuth2Info model: "+err.Error())
+		if h.Error != nil {
+			h.Error(r.Context(), "cannot decode OAuth2Info model: "+err.Error())
+		}
+		http.Error(w, "cannot decode OAuth2Info model", http.StatusBadRequest)
 		return
 	}
 	var authorization string
@@ -93,36 +114,31 @@ func (h *OAuth2Handler) Authenticate(w http.ResponseWriter, r *http.Request) {
 	ip := getRemoteIp(r)
 	var ctx context.Context
 	ctx = r.Context()
-	if len(h.Ip) > 0 {
-		ctx = context.WithValue(ctx, h.Ip, ip)
+	if len(h.Config.Ip) > 0 {
+		ctx = context.WithValue(ctx, h.Config.Ip, ip)
 		r = r.WithContext(ctx)
 	}
 	result, err := h.OAuth2Service.Authenticate(r.Context(), request, authorization)
 	if err != nil {
-		result.Status = auth.StatusSystemError
-		if h.LogError != nil {
-			h.LogError(r.Context(), err.Error())
+		result.Status = h.SystemError
+		if h.Error != nil {
+			h.Error(r.Context(), err.Error())
 		}
-		respond(w, r, http.StatusOK, result, h.LogWriter, h.Resource, h.Action, false, err.Error())
+		respond(w, r, http.StatusOK, result, h.Log, h.Config.Resource, h.Config.Authenticate, false, err.Error())
 	} else {
-		respond(w, r, http.StatusOK, result, h.LogWriter, h.Resource, h.Action, true, "")
+		respond(w, r, http.StatusOK, result, h.Log, h.Config.Resource, h.Config.Authenticate, true, "")
 	}
 }
 
-func respond(w http.ResponseWriter, r *http.Request, code int, result interface{}, logWriter OAuth2ActivityLogWriter, resource string, action string, success bool, desc string) {
+func respond(w http.ResponseWriter, r *http.Request, code int, result interface{}, writeLog func(context.Context, string, string, bool, string) error, resource string, action string, success bool, desc string) {
 	response, _ := json.Marshal(result)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(response)
-	if logWriter != nil {
+	if writeLog != nil {
 		newCtx := context.WithValue(r.Context(), "request", r)
-		logWriter.Write(newCtx, resource, action, success, desc)
+		writeLog(newCtx, resource, action, success, desc)
 	}
-}
-func respondString(w http.ResponseWriter, r *http.Request, code int, result string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	w.Write([]byte(result))
 }
 func getRemoteIp(r *http.Request) string {
 	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
