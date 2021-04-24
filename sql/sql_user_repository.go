@@ -6,17 +6,19 @@ import (
 	"fmt"
 	"github.com/common-go/auth"
 	"github.com/common-go/oauth2"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	DriverPostgres   = "postgres"
-	DriverMysql      = "mysql"
-	DriverMssql      = "mssql"
-	DriverOracle     = "oracle"
-	DriverNotSupport = "no support"
+	driverPostgres   = "postgres"
+	driverMysql      = "mysql"
+	driverMssql      = "mssql"
+	driverOracle     = "oracle"
+	driverSqlite3    = "sqlite3"
+	driverNotSupport = "no support"
 )
 
 type SqlUserRepository struct {
@@ -39,9 +41,10 @@ type SqlUserRepository struct {
 	Status          *auth.UserStatusConfig
 	GenderMapper    oauth2.OAuth2GenderMapper
 	Schema          *oauth2.OAuth2SchemaConfig
+	BuildParam      func(i int) string
 }
 
-func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, driver string, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *SqlUserRepository {
+func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *SqlUserRepository {
 	var genderMapper oauth2.OAuth2GenderMapper
 	if len(options) >= 1 {
 		genderMapper = options[0]
@@ -89,8 +92,11 @@ func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedSt
 	if len(c.Active) == 0 {
 		c.Active = "active"
 	}
+	build := getBuild(db)
+	driver := getDriver(db)
 	m := &SqlUserRepository{
 		DB:              db,
+		BuildParam:      build,
 		Driver:          driver,
 		TableName:       tableName,
 		Prefix:          prefix,
@@ -118,8 +124,12 @@ func NewUserRepository(db *sql.DB, tableName, prefix, activatedStatus string, se
 	middleName = strings.ToLower(middleName)
 	genderName = strings.ToLower(genderName)
 
+	build := getBuild(db)
+	driver := getDriver(db)
 	m := &SqlUserRepository{
 		DB:              db,
+		BuildParam:      build,
+		Driver:          driver,
 		TableName:       tableName,
 		Prefix:          prefix,
 		ActivatedStatus: activatedStatus,
@@ -150,11 +160,10 @@ func (s *SqlUserRepository) GetUser(ctx context.Context, email string) (string, 
 	arr := make(map[string]interface{})
 	columns := make([]interface{}, 0)
 	values := make([]interface{}, 0)
-	s.Driver = DriverOracle
 	i := 0
 	columns = append(columns, s.Schema.UserId, s.Schema.Status, s.TableName,
-		s.Schema.UserName, BuildParam(i, s.Driver),
-		s.Schema.Email, BuildParam(i+1, s.Driver), s.Prefix+s.Schema.OAuth2Email, BuildParam(i+2, s.Driver))
+		s.Schema.UserName, s.BuildParam(i),
+		s.Schema.Email, s.BuildParam(i+1), s.Prefix+s.Schema.OAuth2Email, s.BuildParam(i+2))
 	values = append(values, email, email, email)
 	var where strings.Builder
 	where.WriteString(`%s = %s OR %s = %s OR %s = %s`)
@@ -164,7 +173,7 @@ func (s *SqlUserRepository) GetUser(ctx context.Context, email string) (string, 
 	for _, sv := range s.Services {
 		if sv != s.Prefix {
 			where.WriteString(` OR %s = `)
-			where.WriteString(BuildParam(i, s.Driver))
+			where.WriteString(s.BuildParam(i))
 			i++
 			columns = append(columns, sv+s.Schema.OAuth2Email)
 			values = append(values, email)
@@ -233,8 +242,8 @@ func (s *SqlUserRepository) Update(ctx context.Context, id, email, account strin
 		user[s.updatedByName] = id
 	}
 
-	query, values := s.buildQueryUpdate(user, s.TableName, id, s.Schema.UserId)
-	result, err1 := s.DB.Exec(query, values...)
+	query, values := BuildUpdate(s.TableName, user, s.Schema.UserId, id, s.BuildParam)
+	result, err1 := s.DB.ExecContext(ctx, query, values...)
 	if err1 != nil {
 		return false, err1
 	}
@@ -247,30 +256,47 @@ func (s *SqlUserRepository) Update(ctx context.Context, id, email, account strin
 
 func (s *SqlUserRepository) Insert(ctx context.Context, id string, personInfo oauth2.User) (bool, error) {
 	user := s.userToMap(ctx, id, personInfo)
-	query, values := s.buildQueryString(user)
-	_, err := s.DB.Exec(query, values...)
+	query, values := BuildQuery(s.TableName, user, s.BuildParam)
+	_, err := s.DB.ExecContext(ctx, query, values...)
 	if err != nil {
-		return handleDuplicate(s.DB, err, s.Driver)
+		return handleDuplicate(s.Driver, err)
 	}
 	return false, err
 }
 
-func handleDuplicate(db *sql.DB, err error, driverName string) (bool, error) {
-	x := err.Error()
-	if driverName == DriverPostgres && strings.Contains(x, "pq: duplicate key value violates unique constraint") {
-		return false, nil //pq: duplicate key value violates unique constraint "aa_pkey"
-	} else if driverName == DriverMysql && strings.Contains(x, "Error 1062: Duplicate entry") {
-		return false, nil //mysql Error 1062: Duplicate entry 'a-1' for key 'PRIMARY'
-	} else if driverName == DriverOracle && strings.Contains(x, "ORA-00001: unique constraint") {
-		return false, nil //mysql Error 1062: Duplicate entry 'a-1' for key 'PRIMARY'
-	} else if driverName == DriverMssql && strings.Contains(x, "Violation of PRIMARY KEY constraint") {
-		return false, nil //Violation of PRIMARY KEY constraint 'PK_aa'. Cannot insert duplicate key in object 'dbo.aa'. The duplicate key value is (b, 2).
+func handleDuplicate(driver string, err error) (bool, error) {
+	switch driver {
+	case driverPostgres:
+		if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint") {
+			return true, nil
+		}
+		return false, err
+	case driverMysql:
+		if strings.Contains(err.Error(), "Error 1062: Duplicate entry") {
+			return true, nil
+		}
+		return false, err
+	case driverMssql:
+		if strings.Contains(err.Error(), "Violation of PRIMARY KEY constraint") {
+			return true, nil
+		}
+		return false, err
+	case driverOracle:
+		if strings.Contains(err.Error(), "ORA-00001: unique constraint") {
+			return true, nil
+		}
+		return false, err
+	case driverSqlite3:
+		if strings.Contains(err.Error(), "UNIQUE constraint failed:") {
+			return true, nil
+		}
+		return false, err
+	default:
+		return false, err
 	}
-	return false, err
 }
 
 func (s *SqlUserRepository) userToMap(ctx context.Context, id string, user oauth2.User) map[string]interface{} {
-
 	userMap := oauth2.UserToMap(ctx, id, user, s.GenderMapper, s.Schema)
 	//userMap := User{}
 	userMap[s.Schema.UserId] = id
@@ -283,7 +309,7 @@ func (s *SqlUserRepository) userToMap(ctx context.Context, id string, user oauth
 	return userMap
 }
 
-func (s *SqlUserRepository) buildQueryString(user map[string]interface{}) (string, []interface{}) {
+func BuildQuery(tableName string, user map[string]interface{}, buildParam func(i int) string) (string, []interface{}) {
 	var cols []string
 	var values []interface{}
 	for col, v := range user {
@@ -294,37 +320,72 @@ func (s *SqlUserRepository) buildQueryString(user map[string]interface{}) (strin
 	numCol := len(cols)
 	var arrValue []string
 	for i := 0; i < numCol; i++ {
-		arrValue = append(arrValue, BuildParam(i, s.Driver))
+		arrValue = append(arrValue, buildParam(i))
 	}
 	value := fmt.Sprintf("(%v)", strings.Join(arrValue, ","))
-	return fmt.Sprintf("INSERT INTO %v %v VALUES %v", s.TableName, column, value), values
+	return fmt.Sprintf("INSERT INTO %v %v VALUES %v", tableName, column, value), values
 }
 
-func (r *SqlUserRepository) buildQueryUpdate(model map[string]interface{}, table string, id interface{}, idname string) (string, []interface{}) {
+func BuildUpdate(table string, model map[string]interface{}, idname string, id interface{}, buildParam func(i int) string) (string, []interface{}) {
 	colNumber := 0
-	values := []interface{}{}
+	var values []interface{}
 	querySet := make([]string, 0)
 	for colName, v2 := range model {
 		values = append(values, v2)
-		querySet = append(querySet, fmt.Sprintf("%v="+BuildParam(colNumber, r.Driver), colName))
+		querySet = append(querySet, fmt.Sprintf("%v="+buildParam(colNumber), colName))
 		colNumber++
 	}
 	values = append(values, id)
 	queryWhere := fmt.Sprintf(" %s = %s",
 		idname,
-		BuildParam(colNumber, r.Driver),
+		buildParam(colNumber),
 	)
 	query := fmt.Sprintf("update %v set %v where %v", table, strings.Join(querySet, ","), queryWhere)
 	return query, values
 }
 
-func BuildParam(index int, driver string) string {
+func buildParam(i int) string {
+	return "?"
+}
+func buildOracleParam(i int) string {
+	return ":val" + strconv.Itoa(i)
+}
+func buildMsSqlParam(i int) string {
+	return "@p" + strconv.Itoa(i)
+}
+func buildDollarParam(i int) string {
+	return "$" + strconv.Itoa(i)
+}
+func getBuild(db *sql.DB) func(i int) string {
+	driver := reflect.TypeOf(db.Driver()).String()
 	switch driver {
-	case DriverPostgres:
-		return "$" + strconv.Itoa(index)
-	case DriverOracle:
-		return ":val" + strconv.Itoa(index)
+	case "*pq.Driver":
+		return buildDollarParam
+	case "*godror.drv":
+		return buildOracleParam
+	case "*mssql.Driver":
+		return buildMsSqlParam
 	default:
-		return "?"
+		return buildParam
+	}
+}
+func getDriver(db *sql.DB) string {
+	if db == nil {
+		return driverNotSupport
+	}
+	driver := reflect.TypeOf(db.Driver()).String()
+	switch driver {
+	case "*pq.Driver":
+		return driverPostgres
+	case "*godror.drv":
+		return driverOracle
+	case "*mysql.MySQLDriver":
+		return driverMysql
+	case "*mssql.Driver":
+		return driverMssql
+	case "*sqlite3.SQLiteDriver":
+		return driverSqlite3
+	default:
+		return driverNotSupport
 	}
 }

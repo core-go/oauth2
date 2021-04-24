@@ -17,29 +17,31 @@ type SqlConfigurationRepository struct {
 	Status                 string
 	Active                 string
 	Driver                 string
+	BuildParam             func(i int) string
 }
 
-func NewSqlConfigurationRepository(db *sql.DB, tableName string, oAuth2PersonInfoServices map[string]oauth2.OAuth2UserRepository, status string, active string) *SqlConfigurationRepository {
+func NewConfigurationRepository(db *sql.DB, tableName string, oAuth2PersonInfoServices map[string]oauth2.OAuth2UserRepository, status string, active string) *SqlConfigurationRepository {
 	if len(status) == 0 {
 		status = "status"
 	}
 	if len(active) == 0 {
 		active = "A"
 	}
-
-	return &SqlConfigurationRepository{db, tableName, oAuth2PersonInfoServices, status, active, GetDriver(db)}
+	build := getBuild(db)
+	driver := getDriver(db)
+	return &SqlConfigurationRepository{DB: db, TableName: tableName, OAuth2UserRepositories: oAuth2PersonInfoServices, Status: status, Active: active, Driver: driver, BuildParam: build}
 }
 
 func (s *SqlConfigurationRepository) GetConfiguration(ctx context.Context, id string) (*oauth2.Configuration, string, error) {
 	model := oauth2.Configuration{}
 	limitRowsQL := "limit 1"
-	driver := GetDriver(s.DB)
-	if driver == DriverOracle {
+	driver := getDriver(s.DB)
+	if driver == driverOracle {
 		limitRowsQL = "and rownum = 1"
 	}
-	query := fmt.Sprintf(`select * from %s where %s = %s %s`, s.TableName, "id", BuildParam(0, GetDriver(s.DB)), limitRowsQL)
+	query := fmt.Sprintf(`select * from %s where %s = %s %s`, s.TableName, "id", s.BuildParam(0), limitRowsQL)
 	rows, err := s.DB.Query(query, id)
-	err2 := ScanRow(rows, &model)
+	err2 := scanRow(rows, &model)
 	if err2 == sql.ErrNoRows {
 		return nil, "", err2
 	}
@@ -49,7 +51,7 @@ func (s *SqlConfigurationRepository) GetConfiguration(ctx context.Context, id st
 }
 
 func (s *SqlConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
-	query := fmt.Sprintf(`select * from %s where %s = %s `, s.TableName, s.Status, BuildParam(0, s.Driver))
+	query := fmt.Sprintf(`select * from %s where %s = %s `, s.TableName, s.Status, s.BuildParam(0))
 	rows, err := s.DB.Query(query, s.Active)
 	if err != nil {
 		return nil, err
@@ -57,20 +59,19 @@ func (s *SqlConfigurationRepository) GetConfigurations(ctx context.Context) (*[]
 	model := oauth2.Configuration{}
 	models := make([]oauth2.Configuration, 0)
 	modelType := reflect.TypeOf(model)
-	fieldsIndex, er1 := GetColumnIndexes(modelType)
+	fieldsIndex, er1 := getColumnIndexes(modelType)
 	if er1 != nil {
 		return nil, er1
 	}
 	defer rows.Close()
-	err1 := Scans(rows, &models, fieldsIndex)
+	err1 := scans(rows, &models, fieldsIndex)
 	if err1 != nil {
 		return nil, err1
 	}
 	return &models, err
 }
 
-// StructScan : transfer struct to slice for scan
-func StructScanByIndex(s interface{}, fieldsIndex map[string]int, columns []string) (r []interface{}) {
+func structScanByIndex(s interface{}, fieldsIndex map[string]int, columns []string) (r []interface{}) {
 	if s != nil {
 		maps := reflect.Indirect(reflect.ValueOf(s))
 		fieldsIndexSelected := make([]int, 0)
@@ -88,7 +89,7 @@ func StructScanByIndex(s interface{}, fieldsIndex map[string]int, columns []stri
 	return
 }
 
-func Scans(rows *sql.Rows, results interface{}, fieldsIndex map[string]int) (err error) {
+func scans(rows *sql.Rows, results interface{}, fieldsIndex map[string]int) (err error) {
 	columns, er0 := rows.Columns()
 	if er0 != nil {
 		return er0
@@ -96,25 +97,25 @@ func Scans(rows *sql.Rows, results interface{}, fieldsIndex map[string]int) (err
 	modelType := reflect.TypeOf(results).Elem().Elem()
 	for rows.Next() {
 		initModel := reflect.New(modelType).Interface()
-		if err = rows.Scan(StructScanByIndex(initModel, fieldsIndex, columns)...); err == nil {
+		if err = rows.Scan(structScanByIndex(initModel, fieldsIndex, columns)...); err == nil {
 			appendToArray(results, initModel)
 		}
 	}
 	return
 }
 
-func ScanRow(rows *sql.Rows, result interface{}) (err error) {
+func scanRow(rows *sql.Rows, result interface{}) (err error) {
 	columns, er0 := rows.Columns()
 	if er0 != nil {
 		return er0
 	}
 	modelType := reflect.TypeOf(result).Elem()
-	fieldsIndex, er0 := GetColumnIndexes(modelType)
+	fieldsIndex, er0 := getColumnIndexes(modelType)
 	if er0 != nil {
 		return er0
 	}
 	for rows.Next() {
-		if err = rows.Scan(StructScanByIndex(result, fieldsIndex, columns)...); err == nil {
+		if err = rows.Scan(structScanByIndex(result, fieldsIndex, columns)...); err == nil {
 		}
 		break
 	}
@@ -131,26 +132,7 @@ func appendToArray(arr interface{}, item interface{}) {
 	elemValue.Set(reflect.Append(elemValue, itemValue))
 }
 
-func GetDriver(db *sql.DB) string {
-	if db == nil {
-		return DriverNotSupport
-	}
-	driver := reflect.TypeOf(db.Driver()).String()
-	switch driver {
-	case "*pq.Driver":
-		return DriverPostgres
-	case "*mysql.MySQLDriver":
-		return DriverMysql
-	case "*mssql.Driver":
-		return DriverMssql
-	case "*godror.drv":
-		return DriverOracle
-	default:
-		return DriverNotSupport
-	}
-}
-
-func GetColumnIndexes(modelType reflect.Type) (map[string]int, error) {
+func getColumnIndexes(modelType reflect.Type) (map[string]int, error) {
 	mapp := make(map[string]int, 0)
 	if modelType.Kind() != reflect.Struct {
 		return mapp, errors.New("bad type")
@@ -158,7 +140,7 @@ func GetColumnIndexes(modelType reflect.Type) (map[string]int, error) {
 	for i := 0; i < modelType.NumField(); i++ {
 		field := modelType.Field(i)
 		ormTag := field.Tag.Get("gorm")
-		column, ok := FindTag(ormTag, "column")
+		column, ok := findTag(ormTag, "column")
 		if ok {
 			mapp[column] = i
 		}
@@ -166,7 +148,7 @@ func GetColumnIndexes(modelType reflect.Type) (map[string]int, error) {
 	return mapp, nil
 }
 
-func FindTag(tag string, key string) (string, bool) {
+func findTag(tag string, key string) (string, bool) {
 	if has := strings.Contains(tag, key); has {
 		str1 := strings.Split(tag, ";")
 		num := len(str1)
