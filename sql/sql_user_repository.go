@@ -1,10 +1,11 @@
-package oauth2
+package sql
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 	"github.com/common-go/auth"
+	"github.com/common-go/oauth2"
 	"strconv"
 	"strings"
 	"time"
@@ -36,12 +37,12 @@ type SqlUserRepository struct {
 	updatedTimeName string
 	updatedByName   string
 	Status          *auth.UserStatusConfig
-	GenderMapper    OAuth2GenderMapper
-	Schema          *OAuth2SchemaConfig
+	GenderMapper    oauth2.OAuth2GenderMapper
+	Schema          *oauth2.OAuth2SchemaConfig
 }
 
-func NewSqlUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedStatus string, services []string, c OAuth2SchemaConfig, driver string, status *auth.UserStatusConfig, options ...OAuth2GenderMapper) *SqlUserRepository {
-	var genderMapper OAuth2GenderMapper
+func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, driver string, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *SqlUserRepository {
+	var genderMapper oauth2.OAuth2GenderMapper
 	if len(options) >= 1 {
 		genderMapper = options[0]
 	}
@@ -104,8 +105,8 @@ func NewSqlUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activate
 	return m
 }
 
-func NewSqlUserRepository(db *sql.DB, tableName, prefix, activatedStatus string, services []string, pictureName, displayName, givenName, familyName, middleName, genderName string, status *auth.UserStatusConfig, options ...OAuth2GenderMapper) *SqlUserRepository {
-	var genderMapper OAuth2GenderMapper
+func NewUserRepository(db *sql.DB, tableName, prefix, activatedStatus string, services []string, pictureName, displayName, givenName, familyName, middleName, genderName string, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *SqlUserRepository {
+	var genderMapper oauth2.OAuth2GenderMapper
 	if len(options) >= 1 {
 		genderMapper = options[0]
 	}
@@ -133,7 +134,7 @@ func NewSqlUserRepository(db *sql.DB, tableName, prefix, activatedStatus string,
 		GenderMapper:    genderMapper,
 	}
 	if len(pictureName) > 0 || len(displayName) > 0 || len(givenName) > 0 || len(middleName) > 0 || len(familyName) > 0 || len(genderName) > 0 {
-		c := &OAuth2SchemaConfig{}
+		c := &oauth2.OAuth2SchemaConfig{}
 		c.Picture = pictureName
 		c.DisplayName = displayName
 		c.GivenName = givenName
@@ -244,7 +245,7 @@ func (s *SqlUserRepository) Update(ctx context.Context, id, email, account strin
 	return r > 0, err2
 }
 
-func (s *SqlUserRepository) Insert(ctx context.Context, id string, personInfo User) (bool, error) {
+func (s *SqlUserRepository) Insert(ctx context.Context, id string, personInfo oauth2.User) (bool, error) {
 	user := s.userToMap(ctx, id, personInfo)
 	query, values := s.buildQueryString(user)
 	_, err := s.DB.Exec(query, values...)
@@ -268,9 +269,9 @@ func handleDuplicate(db *sql.DB, err error, driverName string) (bool, error) {
 	return false, err
 }
 
-func (s *SqlUserRepository) userToMap(ctx context.Context, id string, user User) map[string]interface{} {
+func (s *SqlUserRepository) userToMap(ctx context.Context, id string, user oauth2.User) map[string]interface{} {
 
-	userMap := UserToMap(ctx, id, user, s.GenderMapper, s.Schema)
+	userMap := oauth2.UserToMap(ctx, id, user, s.GenderMapper, s.Schema)
 	//userMap := User{}
 	userMap[s.Schema.UserId] = id
 	userMap[s.Schema.UserName] = user.Email

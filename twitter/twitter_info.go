@@ -1,4 +1,4 @@
-package oauth2
+package twitter
 
 type TwitterAccessToken struct {
 	Token       string `json:"oauth_token"`

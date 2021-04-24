@@ -1,10 +1,11 @@
-package oauth2
+package sql
 
 import (
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/common-go/oauth2"
 	"reflect"
 	"strings"
 )
@@ -12,13 +13,13 @@ import (
 type SqlConfigurationRepository struct {
 	DB                     *sql.DB
 	TableName              string
-	OAuth2UserRepositories map[string]OAuth2UserRepository
+	OAuth2UserRepositories map[string]oauth2.OAuth2UserRepository
 	Status                 string
 	Active                 string
 	Driver                 string
 }
 
-func NewSqlConfigurationRepository(db *sql.DB, tableName string, oAuth2PersonInfoServices map[string]OAuth2UserRepository, status string, active string) *SqlConfigurationRepository {
+func NewSqlConfigurationRepository(db *sql.DB, tableName string, oAuth2PersonInfoServices map[string]oauth2.OAuth2UserRepository, status string, active string) *SqlConfigurationRepository {
 	if len(status) == 0 {
 		status = "status"
 	}
@@ -29,8 +30,8 @@ func NewSqlConfigurationRepository(db *sql.DB, tableName string, oAuth2PersonInf
 	return &SqlConfigurationRepository{db, tableName, oAuth2PersonInfoServices, status, active, GetDriver(db)}
 }
 
-func (s *SqlConfigurationRepository) GetConfiguration(ctx context.Context, id string) (*Configuration, string, error) {
-	model := Configuration{}
+func (s *SqlConfigurationRepository) GetConfiguration(ctx context.Context, id string) (*oauth2.Configuration, string, error) {
+	model := oauth2.Configuration{}
 	limitRowsQL := "limit 1"
 	driver := GetDriver(s.DB)
 	if driver == DriverOracle {
@@ -47,14 +48,14 @@ func (s *SqlConfigurationRepository) GetConfiguration(ctx context.Context, id st
 	return &model, clientId, err
 }
 
-func (s *SqlConfigurationRepository) GetConfigurations(ctx context.Context) (*[]Configuration, error) {
+func (s *SqlConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
 	query := fmt.Sprintf(`select * from %s where %s = %s `, s.TableName, s.Status, BuildParam(0, s.Driver))
 	rows, err := s.DB.Query(query, s.Active)
 	if err != nil {
 		return nil, err
 	}
-	model := Configuration{}
-	models := make([]Configuration, 0)
+	model := oauth2.Configuration{}
+	models := make([]oauth2.Configuration, 0)
 	modelType := reflect.TypeOf(model)
 	fieldsIndex, er1 := GetColumnIndexes(modelType)
 	if er1 != nil {

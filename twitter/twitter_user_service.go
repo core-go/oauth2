@@ -1,8 +1,9 @@
-package oauth2
+package twitter
 
 import (
 	"context"
 	"encoding/json"
+	"github.com/common-go/oauth2"
 	"github.com/dghubble/oauth1"
 	"github.com/dghubble/oauth1/twitter"
 	"io/ioutil"
@@ -19,7 +20,7 @@ func NewTwitterUserRepository(callbackURL string) *TwitterUserRepository {
 	return &TwitterUserRepository{callbackURL}
 }
 
-func (g *TwitterUserRepository) GetUserFromOAuth2(ctx context.Context, urlRedirect string, clientId string, clientSecret string, code string) (*User, string, error) {
+func (g *TwitterUserRepository) GetUserFromOAuth2(ctx context.Context, urlRedirect string, clientId string, clientSecret string, code string) (*oauth2.User, string, error) {
 	oauthToken := code[0:strings.Index(code, ":")]
 	oauthVerifier := code[strings.Index(code, ":")+1:]
 
@@ -56,14 +57,14 @@ func (g *TwitterUserRepository) GetUserFromOAuth2(ctx context.Context, urlRedire
 		return nil, accessToken.Token, er3
 	}
 
-	var user User
+	var user oauth2.User
 	user.Account = strconv.Itoa(t.Id)
 	user.GivenName = t.Name
 	user.FamilyName = t.Name
 	user.DisplayName = t.ScreenName
 	user.Picture = t.Picture
 	user.Email = t.ScreenName
-	user.Gender = GenderUnknown
+	user.Gender = oauth2.GenderUnknown
 	return &user, accessToken.Token, nil
 }
 
