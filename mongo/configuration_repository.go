@@ -9,14 +9,14 @@ import (
 	"strings"
 )
 
-type MongoConfigurationRepository struct {
+type ConfigurationRepository struct {
 	Collection             *mongo.Collection
 	OAuth2UserRepositories map[string]oauth2.OAuth2UserRepository
 	Status                 string
 	Active                 string
 }
 
-func NewConfigurationRepository(db *mongo.Database, collectionName string, oauth2UserRepositories map[string]oauth2.OAuth2UserRepository, status string, active string) *MongoConfigurationRepository {
+func NewConfigurationRepository(db *mongo.Database, collectionName string, oauth2UserRepositories map[string]oauth2.OAuth2UserRepository, status string, active string) *ConfigurationRepository {
 	if len(status) == 0 {
 		status = "status"
 	}
@@ -24,10 +24,10 @@ func NewConfigurationRepository(db *mongo.Database, collectionName string, oauth
 		active = "A"
 	}
 	collection := db.Collection(collectionName)
-	return &MongoConfigurationRepository{Collection: collection, OAuth2UserRepositories: oauth2UserRepositories, Status: status, Active: active}
+	return &ConfigurationRepository{Collection: collection, OAuth2UserRepositories: oauth2UserRepositories, Status: status, Active: active}
 }
 
-func (s *MongoConfigurationRepository) GetConfiguration(ctx context.Context, id string) (*oauth2.Configuration, string, error) {
+func (s *ConfigurationRepository) GetConfiguration(ctx context.Context, id string) (*oauth2.Configuration, string, error) {
 	var model oauth2.Configuration
 	query := bson.M{"_id": id}
 	x := s.Collection.FindOne(ctx, query)
@@ -47,7 +47,7 @@ func (s *MongoConfigurationRepository) GetConfiguration(ctx context.Context, id 
 	k.ClientId, err = s.OAuth2UserRepositories[id].GetRequestTokenOAuth(ctx, model.ClientId, model.ClientSecret)
 	return k, clientId, err
 }
-func (s *MongoConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
+func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
 	var models []oauth2.Configuration
 	query := bson.M{s.Status: s.Active}
 	x, er1 := s.Collection.Find(ctx, query)

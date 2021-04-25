@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-type FirestoreUserRepository struct {
+type UserRepository struct {
 	Collection      *firestore.CollectionRef
 	Prefix          string
 	ActivatedStatus string
@@ -28,7 +28,7 @@ type FirestoreUserRepository struct {
 	Schema          *oauth2.OAuth2SchemaConfig
 }
 
-func NewUserRepositoryByConfig(db *firestore.Client, collectionName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *FirestoreUserRepository {
+func NewUserRepositoryByConfig(db *firestore.Client, collectionName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *UserRepository {
 	var genderMapper oauth2.OAuth2GenderMapper
 	if len(options) >= 1 {
 		genderMapper = options[0]
@@ -52,7 +52,7 @@ func NewUserRepositoryByConfig(db *firestore.Client, collectionName, prefix stri
 		c.Active = "Active"
 	}
 	collection := db.Collection(collectionName)
-	m := &FirestoreUserRepository{
+	m := &UserRepository{
 		Collection:      collection,
 		Prefix:          prefix,
 		ActivatedStatus: activatedStatus,
@@ -65,14 +65,14 @@ func NewUserRepositoryByConfig(db *firestore.Client, collectionName, prefix stri
 	return m
 }
 
-func NewUserRepository(db *firestore.Client, collectionName, prefix, activatedStatus string, services []string, pictureName, displayName, givenName, familyName, middleName, genderName string, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *FirestoreUserRepository {
+func NewUserRepository(db *firestore.Client, collectionName, prefix, activatedStatus string, services []string, pictureName, displayName, givenName, familyName, middleName, genderName string, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *UserRepository {
 	var genderMapper oauth2.OAuth2GenderMapper
 	if len(options) >= 1 {
 		genderMapper = options[0]
 	}
 	collection := db.Collection(collectionName)
 
-	m := &FirestoreUserRepository{
+	m := &UserRepository{
 		Collection:      collection,
 		Prefix:          prefix,
 		ActivatedStatus: activatedStatus,
@@ -99,7 +99,7 @@ func NewUserRepository(db *firestore.Client, collectionName, prefix, activatedSt
 	return m
 }
 
-func (r *FirestoreUserRepository) GetUser(ctx context.Context, email string) (string, bool, bool, error) {
+func (r *UserRepository) GetUser(ctx context.Context, email string) (string, bool, bool, error) {
 	queries := []Query{
 		{Key: r.UserName, Operator: "==", Value: email},
 		{Key: r.EmailName, Operator: "==", Value: email},
@@ -138,7 +138,7 @@ func (r *FirestoreUserRepository) GetUser(ctx context.Context, email string) (st
 	return userId, disable, suspended, nil
 }
 
-func (r *FirestoreUserRepository) query(ctx context.Context, queries ...Query) (*firestore.DocumentSnapshot, error) {
+func (r *UserRepository) query(ctx context.Context, queries ...Query) (*firestore.DocumentSnapshot, error) {
 	for _, query := range queries {
 		q := r.Collection.Where(query.Key, query.Operator, query.Value).Limit(1)
 		iter := q.Documents(ctx)
@@ -156,7 +156,7 @@ type Query struct {
 	Value         interface{}
 }
 
-func (r *FirestoreUserRepository) Update(ctx context.Context, id, email, account string) (bool, error) {
+func (r *UserRepository) Update(ctx context.Context, id, email, account string) (bool, error) {
 	docSnap, err := r.Collection.Doc(id).Get(ctx)
 	if err != nil || docSnap.Data() == nil {
 		return false, err
@@ -178,7 +178,7 @@ func (r *FirestoreUserRepository) Update(ctx context.Context, id, email, account
 	return true, nil
 }
 
-func (r *FirestoreUserRepository) Insert(ctx context.Context, id string, user oauth2.User) (bool, error) {
+func (r *UserRepository) Insert(ctx context.Context, id string, user oauth2.User) (bool, error) {
 	userMap := r.userToMap(ctx, id, user)
 	_, err := r.Collection.Doc(id).Create(ctx, userMap)
 
@@ -193,7 +193,7 @@ func (r *FirestoreUserRepository) Insert(ctx context.Context, id string, user oa
 	return false, nil
 }
 
-func (r *FirestoreUserRepository) userToMap(ctx context.Context, id string, user oauth2.User) map[string]interface{} {
+func (r *UserRepository) userToMap(ctx context.Context, id string, user oauth2.User) map[string]interface{} {
 	userMap := oauth2.UserToMap(ctx, id, user, r.GenderMapper, r.Schema)
 
 	userMap[r.UserName] = user.Email

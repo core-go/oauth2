@@ -21,7 +21,7 @@ const (
 	driverNotSupport = "no support"
 )
 
-type SqlUserRepository struct {
+type UserRepository struct {
 	DB              *sql.DB
 	Driver          string
 	TableName       string
@@ -44,7 +44,7 @@ type SqlUserRepository struct {
 	BuildParam      func(i int) string
 }
 
-func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *SqlUserRepository {
+func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *UserRepository {
 	var genderMapper oauth2.OAuth2GenderMapper
 	if len(options) >= 1 {
 		genderMapper = options[0]
@@ -94,7 +94,7 @@ func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedSt
 	}
 	build := getBuild(db)
 	driver := getDriver(db)
-	m := &SqlUserRepository{
+	m := &UserRepository{
 		DB:              db,
 		BuildParam:      build,
 		Driver:          driver,
@@ -111,7 +111,7 @@ func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedSt
 	return m
 }
 
-func NewUserRepository(db *sql.DB, tableName, prefix, activatedStatus string, services []string, pictureName, displayName, givenName, familyName, middleName, genderName string, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *SqlUserRepository {
+func NewUserRepository(db *sql.DB, tableName, prefix, activatedStatus string, services []string, pictureName, displayName, givenName, familyName, middleName, genderName string, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *UserRepository {
 	var genderMapper oauth2.OAuth2GenderMapper
 	if len(options) >= 1 {
 		genderMapper = options[0]
@@ -126,7 +126,7 @@ func NewUserRepository(db *sql.DB, tableName, prefix, activatedStatus string, se
 
 	build := getBuild(db)
 	driver := getDriver(db)
-	m := &SqlUserRepository{
+	m := &UserRepository{
 		DB:              db,
 		BuildParam:      build,
 		Driver:          driver,
@@ -156,7 +156,7 @@ func NewUserRepository(db *sql.DB, tableName, prefix, activatedStatus string, se
 	return m
 }
 
-func (s *SqlUserRepository) GetUser(ctx context.Context, email string) (string, bool, bool, error) {
+func (s *UserRepository) GetUser(ctx context.Context, email string) (string, bool, bool, error) {
 	arr := make(map[string]interface{})
 	columns := make([]interface{}, 0)
 	values := make([]interface{}, 0)
@@ -228,7 +228,7 @@ func (s *SqlUserRepository) GetUser(ctx context.Context, email string) (string, 
 	return string(arr[s.Schema.UserId].([]byte)), disable, suspended, nil
 }
 
-func (s *SqlUserRepository) Update(ctx context.Context, id, email, account string) (bool, error) {
+func (s *UserRepository) Update(ctx context.Context, id, email, account string) (bool, error) {
 	user := make(map[string]interface{})
 
 	user[s.Prefix+s.Schema.OAuth2Email] = email
@@ -254,7 +254,7 @@ func (s *SqlUserRepository) Update(ctx context.Context, id, email, account strin
 	return r > 0, err2
 }
 
-func (s *SqlUserRepository) Insert(ctx context.Context, id string, personInfo oauth2.User) (bool, error) {
+func (s *UserRepository) Insert(ctx context.Context, id string, personInfo oauth2.User) (bool, error) {
 	user := s.userToMap(ctx, id, personInfo)
 	query, values := BuildQuery(s.TableName, user, s.BuildParam)
 	_, err := s.DB.ExecContext(ctx, query, values...)
@@ -296,7 +296,7 @@ func handleDuplicate(driver string, err error) (bool, error) {
 	}
 }
 
-func (s *SqlUserRepository) userToMap(ctx context.Context, id string, user oauth2.User) map[string]interface{} {
+func (s *UserRepository) userToMap(ctx context.Context, id string, user oauth2.User) map[string]interface{} {
 	userMap := oauth2.UserToMap(ctx, id, user, s.GenderMapper, s.Schema)
 	//userMap := User{}
 	userMap[s.Schema.UserId] = id

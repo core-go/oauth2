@@ -8,19 +8,19 @@ import (
 	"strings"
 )
 
-type FirestoreConfigurationRepository struct {
+type ConfigurationRepository struct {
 	Collection             *firestore.CollectionRef
 	OAuth2UserRepositories map[string]oauth2.OAuth2UserRepository
 	Status                 string
 	Active                 string
 }
 
-func NewConfigurationRepository(db *firestore.Client, collectionName string, oAuth2PersonInfoServices map[string]oauth2.OAuth2UserRepository, status string, active string) *FirestoreConfigurationRepository {
+func NewConfigurationRepository(db *firestore.Client, collectionName string, oAuth2PersonInfoServices map[string]oauth2.OAuth2UserRepository, status string, active string) *ConfigurationRepository {
 	collection := db.Collection(collectionName)
-	return &FirestoreConfigurationRepository{Collection: collection, OAuth2UserRepositories: oAuth2PersonInfoServices, Status: status, Active: active}
+	return &ConfigurationRepository{Collection: collection, OAuth2UserRepositories: oAuth2PersonInfoServices, Status: status, Active: active}
 }
 
-func (s *FirestoreConfigurationRepository) GetConfiguration(ctx context.Context, sourceType string) (*oauth2.Configuration, string, error) {
+func (s *ConfigurationRepository) GetConfiguration(ctx context.Context, sourceType string) (*oauth2.Configuration, string, error) {
 	var model oauth2.Configuration
 	doc, err := s.Collection.Doc(sourceType).Get(ctx)
 	if !doc.Exists() {
@@ -43,7 +43,7 @@ func (s *FirestoreConfigurationRepository) GetConfiguration(ctx context.Context,
 	k.ClientId, err = s.OAuth2UserRepositories[sourceType].GetRequestTokenOAuth(ctx, model.ClientId, model.ClientSecret)
 	return k, clientId, err
 }
-func (s *FirestoreConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
+func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
 	arr := make([]oauth2.Configuration, 0)
 	q := s.Collection.Where(s.Status, "=", s.Active)
 	iter := q.Documents(ctx)

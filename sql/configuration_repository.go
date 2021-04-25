@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-type SqlConfigurationRepository struct {
+type ConfigurationRepository struct {
 	DB                     *sql.DB
 	TableName              string
 	OAuth2UserRepositories map[string]oauth2.OAuth2UserRepository
@@ -20,7 +20,7 @@ type SqlConfigurationRepository struct {
 	BuildParam             func(i int) string
 }
 
-func NewConfigurationRepository(db *sql.DB, tableName string, oAuth2PersonInfoServices map[string]oauth2.OAuth2UserRepository, status string, active string) *SqlConfigurationRepository {
+func NewConfigurationRepository(db *sql.DB, tableName string, oAuth2PersonInfoServices map[string]oauth2.OAuth2UserRepository, status string, active string) *ConfigurationRepository {
 	if len(status) == 0 {
 		status = "status"
 	}
@@ -29,10 +29,10 @@ func NewConfigurationRepository(db *sql.DB, tableName string, oAuth2PersonInfoSe
 	}
 	build := getBuild(db)
 	driver := getDriver(db)
-	return &SqlConfigurationRepository{DB: db, TableName: tableName, OAuth2UserRepositories: oAuth2PersonInfoServices, Status: status, Active: active, Driver: driver, BuildParam: build}
+	return &ConfigurationRepository{DB: db, TableName: tableName, OAuth2UserRepositories: oAuth2PersonInfoServices, Status: status, Active: active, Driver: driver, BuildParam: build}
 }
 
-func (s *SqlConfigurationRepository) GetConfiguration(ctx context.Context, id string) (*oauth2.Configuration, string, error) {
+func (s *ConfigurationRepository) GetConfiguration(ctx context.Context, id string) (*oauth2.Configuration, string, error) {
 	model := oauth2.Configuration{}
 	limitRowsQL := "limit 1"
 	driver := getDriver(s.DB)
@@ -50,7 +50,7 @@ func (s *SqlConfigurationRepository) GetConfiguration(ctx context.Context, id st
 	return &model, clientId, err
 }
 
-func (s *SqlConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
+func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
 	query := fmt.Sprintf(`select * from %s where %s = %s `, s.TableName, s.Status, s.BuildParam(0))
 	rows, err := s.DB.Query(query, s.Active)
 	if err != nil {

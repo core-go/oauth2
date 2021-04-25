@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-type MongoUserRepository struct {
+type UserRepository struct {
 	Collection      *mongo.Collection
 	Prefix          string
 	ActivatedStatus string
@@ -30,7 +30,7 @@ type MongoUserRepository struct {
 	Schema          *oauth2.OAuth2SchemaConfig
 }
 
-func NewUserRepositoryByConfig(db *mongo.Database, collectionName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *MongoUserRepository {
+func NewUserRepositoryByConfig(db *mongo.Database, collectionName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *UserRepository {
 	var genderMapper oauth2.OAuth2GenderMapper
 	if len(options) >= 1 {
 		genderMapper = options[0]
@@ -54,7 +54,7 @@ func NewUserRepositoryByConfig(db *mongo.Database, collectionName, prefix string
 		c.Active = "Active"
 	}
 	collection := db.Collection(collectionName)
-	m := &MongoUserRepository{
+	m := &UserRepository{
 		Collection:      collection,
 		Prefix:          prefix,
 		ActivatedStatus: activatedStatus,
@@ -75,14 +75,14 @@ func NewUserRepositoryByConfig(db *mongo.Database, collectionName, prefix string
 	return m
 }
 
-func NewUserRepository(db *mongo.Database, collectionName, prefix, activatedStatus string, services []string, pictureName, displayName, givenName, familyName, middleName, genderName string, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *MongoUserRepository {
+func NewUserRepository(db *mongo.Database, collectionName, prefix, activatedStatus string, services []string, pictureName, displayName, givenName, familyName, middleName, genderName string, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *UserRepository {
 	var genderMapper oauth2.OAuth2GenderMapper
 	if len(options) >= 1 {
 		genderMapper = options[0]
 	}
 	collection := db.Collection(collectionName)
 
-	m := &MongoUserRepository{
+	m := &UserRepository{
 		Collection:      collection,
 		Prefix:          prefix,
 		ActivatedStatus: activatedStatus,
@@ -109,7 +109,7 @@ func NewUserRepository(db *mongo.Database, collectionName, prefix, activatedStat
 	return m
 }
 
-func (r *MongoUserRepository) GetUser(ctx context.Context, email string) (string, bool, bool, error) {
+func (r *UserRepository) GetUser(ctx context.Context, email string) (string, bool, bool, error) {
 	// query := bson.M{"$or": []bson.M{{"userName": email}, {"email": email}, {"linkedinEmail": email}, {"facebookEmail": email}, {"googleEmail": email}}}
 	queries := []bson.M{{r.UserName: email}, {r.EmailName: email}, {r.Prefix + r.OAuth2EmailName: email}}
 	for _, sv := range r.Services {
@@ -149,7 +149,7 @@ func (r *MongoUserRepository) GetUser(ctx context.Context, email string) (string
 	return userId, disable, suspended, nil
 }
 
-func (r *MongoUserRepository) Update(ctx context.Context, id, email, account string) (bool, error) {
+func (r *UserRepository) Update(ctx context.Context, id, email, account string) (bool, error) {
 	user := make(map[string]interface{})
 
 	user[r.Prefix+r.OAuth2EmailName] = email
@@ -172,7 +172,7 @@ func (r *MongoUserRepository) Update(ctx context.Context, id, email, account str
 	return result.ModifiedCount+result.UpsertedCount+result.MatchedCount > 0, err
 }
 
-func (r *MongoUserRepository) Insert(ctx context.Context, id string, user oauth2.User) (bool, error) {
+func (r *UserRepository) Insert(ctx context.Context, id string, user oauth2.User) (bool, error) {
 	userMap := r.userToMap(ctx, id, user)
 	_, err := r.Collection.InsertOne(ctx, userMap)
 	if err != nil {
@@ -186,7 +186,7 @@ func (r *MongoUserRepository) Insert(ctx context.Context, id string, user oauth2
 	return false, nil
 }
 
-func (r *MongoUserRepository) userToMap(ctx context.Context, id string, user oauth2.User) map[string]interface{} {
+func (r *UserRepository) userToMap(ctx context.Context, id string, user oauth2.User) map[string]interface{} {
 	userMap := oauth2.UserToMap(ctx, id, user, r.GenderMapper, r.Schema)
 
 	userMap["_id"] = id
