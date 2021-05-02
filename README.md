@@ -13,7 +13,6 @@
 - UserRepository
 
 ## Installation
-
 Please make sure to initialize a Go module before installing core-go/oauth2:
 
 ```shell
