@@ -4,8 +4,8 @@ import (
 	"cloud.google.com/go/firestore"
 	"context"
 	"fmt"
-	"github.com/common-go/auth"
-	"github.com/common-go/oauth2"
+	"github.com/core-go/auth"
+	"github.com/core-go/oauth2"
 	"strings"
 )
 

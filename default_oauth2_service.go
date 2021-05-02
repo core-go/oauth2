@@ -2,7 +2,7 @@ package oauth2
 
 import (
 	"context"
-	"github.com/common-go/auth"
+	"github.com/core-go/auth"
 	"strings"
 )
 

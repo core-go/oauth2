@@ -3,7 +3,7 @@ package firestore
 import (
 	"cloud.google.com/go/firestore"
 	"context"
-	"github.com/common-go/oauth2"
+	"github.com/core-go/oauth2"
 	"google.golang.org/api/iterator"
 	"strings"
 )

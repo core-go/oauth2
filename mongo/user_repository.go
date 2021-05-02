@@ -2,8 +2,8 @@ package mongo
 
 import (
 	"context"
-	"github.com/common-go/auth"
-	"github.com/common-go/oauth2"
+	"github.com/core-go/auth"
+	"github.com/core-go/oauth2"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"strconv"

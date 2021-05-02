@@ -3,7 +3,7 @@ package twitter
 import (
 	"context"
 	"encoding/json"
-	"github.com/common-go/oauth2"
+	"github.com/core-go/oauth2"
 	"github.com/dghubble/oauth1"
 	"github.com/dghubble/oauth1/twitter"
 	"io/ioutil"

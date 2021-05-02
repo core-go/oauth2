@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/common-go/oauth2"
+	"github.com/core-go/oauth2"
 	"reflect"
 	"strings"
 )
