@@ -3,7 +3,6 @@ package cassandra
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -144,7 +143,8 @@ func (s *UserRepository) GetUser(ctx context.Context, email string) (string, boo
 	queryString := (`SELECT %s, %s FROM %s WHERE %s = ? ALLOW FILTERING`)
 	queryUserName := fmt.Sprintf(queryString, s.Schema.UserId, s.Schema.Status, s.TableName, s.Schema.UserName)
 
-	resultUserName := s.Session.Query(queryUserName, email)
+	session := s.Session
+	resultUserName := session.Query(queryUserName, email)
 	for _, _ = range resultUserName.Iter().Columns() {
 		// New map each iteration
 		row := make(map[string]interface{})
@@ -161,9 +161,7 @@ func (s *UserRepository) GetUser(ctx context.Context, email string) (string, boo
 	}
 	if len(userId) <= 0 {
 		queryEmail := fmt.Sprintf(queryString, s.Schema.UserId, s.Schema.Status, s.TableName, s.Schema.Email)
-		log.Println(s.EmailName)
-		resultEmail := s.Session.Query(queryEmail, email)
-		log.Println(queryEmail)
+		resultEmail := session.Query(queryEmail, email)
 
 		for _, _ = range resultUserName.Iter().Columns() {
 			// New map each iteration
@@ -182,9 +180,7 @@ func (s *UserRepository) GetUser(ctx context.Context, email string) (string, boo
 	}
 	if len(userId) <= 0 {
 		queryOAuth2Email := fmt.Sprintf(queryString, s.Schema.UserId, s.Schema.Status, s.TableName, s.Prefix+s.Schema.Email)
-		log.Println(s.Prefix + s.Schema.Email)
-		log.Println(queryOAuth2Email)
-		resultqueryOAuth2Email := s.Session.Query(queryOAuth2Email, email)
+		resultqueryOAuth2Email := session.Query(queryOAuth2Email, email)
 		for _, _ = range resultUserName.Iter().Columns() {
 			// New map each iteration
 			row := make(map[string]interface{})
@@ -202,14 +198,12 @@ func (s *UserRepository) GetUser(ctx context.Context, email string) (string, boo
 	}
 	disable := false
 	suspended := false
-	log.Println(s.Schema.Status)
 	if s.Status != nil {
 		status := statusUser
 		if status == s.Status.Disable {
 			disable = true
 		}
 		if status == s.Status.Suspended {
-			log.Println(s.Status.Suspended)
 			suspended = true
 		}
 	}
@@ -217,6 +211,7 @@ func (s *UserRepository) GetUser(ctx context.Context, email string) (string, boo
 }
 
 func (s *UserRepository) Update(ctx context.Context, id, email, account string) (bool, error) {
+	session := s.Session
 	user := make(map[string]interface{})
 
 	user[s.Prefix+s.Schema.OAuth2Email] = email
@@ -230,8 +225,7 @@ func (s *UserRepository) Update(ctx context.Context, id, email, account string) 
 		user[s.updatedByName] = id
 	}
 	query, values := BuildUpdate(s.TableName, user, s.Schema.UserId, id, "?")
-	log.Println(query, values)
-	result := s.Session.Query(query, values...)
+	result := session.Query(query, values...)
 	if result.Exec() != nil {
 		return false, result.Exec()
 	}
@@ -243,9 +237,10 @@ func (s *UserRepository) Update(ctx context.Context, id, email, account string) 
 }
 
 func (s *UserRepository) Insert(ctx context.Context, id string, personInfo oauth2.User) (bool, error) {
+	session := s.Session
 	user := s.userToMap(ctx, id, personInfo)
 	query, values := BuildQuery(s.TableName, user)
-	result := s.Session.Query(query, values...)
+	result := session.Query(query, values...)
 	if result.Exec() != nil {
 		return false, result.Exec()
 	}
@@ -275,7 +270,6 @@ func BuildQuery(tableName string, user map[string]interface{}) (string, []interf
 	column := fmt.Sprintf("(%v)", strings.Join(cols, ","))
 	numCol := len(cols)
 	var arrValue []string
-	log.Println(numCol)
 	for i := 0; i < numCol; i++ {
 		arrValue = append(arrValue, "?")
 	}

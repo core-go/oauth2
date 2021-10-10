@@ -34,9 +34,10 @@ func NewConfigurationRepository(session *gocql.Session, tableName string, oauth2
 }
 
 func (s *ConfigurationRepository) GetConfiguration(ctx context.Context, id string) (*oauth2.Configuration, string, error) {
+	session := s.Session
 	var configurations []oauth2.Configuration
-	query := fmt.Sprintf(`select %s from %s where %s = ? ALLOW FILTERING`, "clientid, clientsecret ", s.TableName, "sourcetype")
-	err := query(s.Session, s.configurationFields, &configurations, query, id)
+	q := fmt.Sprintf(`select %s from %s where %s = ? ALLOW FILTERING`, "clientid, clientsecret ", s.TableName, "sourcetype")
+	err := query(session, s.configurationFields, &configurations, q, id)
 	if err != nil {
 		return nil, "", err
 	}
@@ -49,9 +50,10 @@ func (s *ConfigurationRepository) GetConfiguration(ctx context.Context, id strin
 	return &model, clientId, err
 }
 func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
+	session := s.Session
 	var configurations []oauth2.Configuration
-	query := fmt.Sprintf(`select * from %s where %s = ? `, s.TableName, s.Status)
-	err := query(s.Session, s.configurationFields, &configurations, query, s.Active)
+	q := fmt.Sprintf(`select * from %s where %s = ? `, s.TableName, s.Status)
+	err := query(session, s.configurationFields, &configurations, q, s.Active)
 	if err != nil {
 		return nil, err
 	}
