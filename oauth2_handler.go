@@ -130,15 +130,15 @@ func (h *OAuth2Handler) Authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func respond(w http.ResponseWriter, r *http.Request, code int, result interface{}, writeLog func(context.Context, string, string, bool, string) error, resource string, action string, success bool, desc string) {
-	response, _ := json.Marshal(result)
+func respond(w http.ResponseWriter, r *http.Request, code int, result interface{}, writeLog func(context.Context, string, string, bool, string) error, resource string, action string, success bool, desc string) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	w.Write(response)
+	err := json.NewEncoder(w).Encode(result)
 	if writeLog != nil {
 		newCtx := context.WithValue(r.Context(), "request", r)
 		writeLog(newCtx, resource, action, success, desc)
 	}
+	return err
 }
 func getRemoteIp(r *http.Request) string {
 	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)

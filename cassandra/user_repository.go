@@ -13,7 +13,7 @@ import (
 )
 
 type UserRepository struct {
-	Cassandra       *gocql.ClusterConfig
+	Session         *gocql.Session
 	TableName       string
 	Prefix          string
 	ActivatedStatus string
@@ -34,7 +34,7 @@ type UserRepository struct {
 	BuildParam      func(i int) string
 }
 
-func NewUserRepositoryByConfig(db *gocql.ClusterConfig, tableName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *UserRepository {
+func NewUserRepositoryByConfig(session *gocql.Session, tableName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *UserRepository {
 	var genderMapper oauth2.OAuth2GenderMapper
 	if len(options) >= 1 {
 		genderMapper = options[0]
@@ -83,7 +83,7 @@ func NewUserRepositoryByConfig(db *gocql.ClusterConfig, tableName, prefix string
 		c.Active = "active"
 	}
 	m := &UserRepository{
-		Cassandra:       db,
+		Session:         session,
 		TableName:       tableName,
 		Prefix:          prefix,
 		ActivatedStatus: activatedStatus,
@@ -97,7 +97,7 @@ func NewUserRepositoryByConfig(db *gocql.ClusterConfig, tableName, prefix string
 	return m
 }
 
-func NewUserRepository(db *gocql.ClusterConfig, tableName, prefix, activatedStatus string, services []string, pictureName, displayName, givenName, familyName, middleName, genderName string, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *UserRepository {
+func NewUserRepository(session *gocql.Session, tableName, prefix, activatedStatus string, services []string, pictureName, displayName, givenName, familyName, middleName, genderName string, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *UserRepository {
 	var genderMapper oauth2.OAuth2GenderMapper
 	if len(options) >= 1 {
 		genderMapper = options[0]
@@ -111,7 +111,7 @@ func NewUserRepository(db *gocql.ClusterConfig, tableName, prefix, activatedStat
 	genderName = strings.ToLower(genderName)
 
 	m := &UserRepository{
-		Cassandra:       db,
+		Session:         session,
 		TableName:       tableName,
 		Prefix:          prefix,
 		ActivatedStatus: activatedStatus,
@@ -139,16 +139,12 @@ func NewUserRepository(db *gocql.ClusterConfig, tableName, prefix, activatedStat
 }
 
 func (s *UserRepository) GetUser(ctx context.Context, email string) (string, bool, bool, error) {
-	session, er0 := s.Cassandra.CreateSession()
-	if er0 != nil {
-		return "", false, false, er0
-	}
 	userId := ""
 	statusUser := ""
 	queryString := (`SELECT %s, %s FROM %s WHERE %s = ? ALLOW FILTERING`)
 	queryUserName := fmt.Sprintf(queryString, s.Schema.UserId, s.Schema.Status, s.TableName, s.Schema.UserName)
 
-	resultUserName := session.Query(queryUserName, email)
+	resultUserName := s.Session.Query(queryUserName, email)
 	for _, _ = range resultUserName.Iter().Columns() {
 		// New map each iteration
 		row := make(map[string]interface{})
@@ -166,7 +162,7 @@ func (s *UserRepository) GetUser(ctx context.Context, email string) (string, boo
 	if len(userId) <= 0 {
 		queryEmail := fmt.Sprintf(queryString, s.Schema.UserId, s.Schema.Status, s.TableName, s.Schema.Email)
 		log.Println(s.EmailName)
-		resultEmail := session.Query(queryEmail, email)
+		resultEmail := s.Session.Query(queryEmail, email)
 		log.Println(queryEmail)
 
 		for _, _ = range resultUserName.Iter().Columns() {
@@ -188,7 +184,7 @@ func (s *UserRepository) GetUser(ctx context.Context, email string) (string, boo
 		queryOAuth2Email := fmt.Sprintf(queryString, s.Schema.UserId, s.Schema.Status, s.TableName, s.Prefix+s.Schema.Email)
 		log.Println(s.Prefix + s.Schema.Email)
 		log.Println(queryOAuth2Email)
-		resultqueryOAuth2Email := session.Query(queryOAuth2Email, email)
+		resultqueryOAuth2Email := s.Session.Query(queryOAuth2Email, email)
 		for _, _ = range resultUserName.Iter().Columns() {
 			// New map each iteration
 			row := make(map[string]interface{})
@@ -221,10 +217,6 @@ func (s *UserRepository) GetUser(ctx context.Context, email string) (string, boo
 }
 
 func (s *UserRepository) Update(ctx context.Context, id, email, account string) (bool, error) {
-	session, er0 := s.Cassandra.CreateSession()
-	if er0 != nil {
-		return false, er0
-	}
 	user := make(map[string]interface{})
 
 	user[s.Prefix+s.Schema.OAuth2Email] = email
@@ -239,7 +231,7 @@ func (s *UserRepository) Update(ctx context.Context, id, email, account string) 
 	}
 	query, values := BuildUpdate(s.TableName, user, s.Schema.UserId, id, "?")
 	log.Println(query, values)
-	result := session.Query(query, values...)
+	result := s.Session.Query(query, values...)
 	if result.Exec() != nil {
 		return false, result.Exec()
 	}
@@ -251,13 +243,9 @@ func (s *UserRepository) Update(ctx context.Context, id, email, account string) 
 }
 
 func (s *UserRepository) Insert(ctx context.Context, id string, personInfo oauth2.User) (bool, error) {
-	session, er0 := s.Cassandra.CreateSession()
-	if er0 != nil {
-		return false, er0
-	}
 	user := s.userToMap(ctx, id, personInfo)
 	query, values := BuildQuery(s.TableName, user)
-	result := session.Query(query, values...)
+	result := s.Session.Query(query, values...)
 	if result.Exec() != nil {
 		return false, result.Exec()
 	}
