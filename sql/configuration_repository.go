@@ -60,7 +60,7 @@ func (s *ConfigurationRepository) GetConfiguration(ctx context.Context, id strin
 
 func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
 	var configurations []oauth2.Configuration
-	query := fmt.Sprintf(`select * from %s where %s = %s `, s.TableName, s.Status, s.BuildParam(0))
+	query := fmt.Sprintf(`select * from %s where %s = %s `, s.TableName, s.Status, s.BuildParam(1))
 	err := queryWithMap(ctx, s.DB, s.configurationFields, &configurations, query, s.Active)
 	if err != nil {
 		return nil, err

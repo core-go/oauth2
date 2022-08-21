@@ -48,15 +48,15 @@ func (s *ConfigurationRepository) GetConfiguration(ctx context.Context, id strin
 	return k, clientId, err
 }
 func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
-	var models []oauth2.Configuration
-	query := bson.M{s.Status: s.Active}
-	x, er1 := s.Collection.Find(ctx, query)
+	var configurations []oauth2.Configuration
+	query := bson.M{}
+	cursor, er1 := s.Collection.Find(ctx, query)
 	if er1 != nil {
 		return nil, er1
 	}
-	er2 := x.Decode(&models)
+	er2 := cursor.All(ctx, &configurations)
 	if er2 != nil {
 		return nil, er2
 	}
-	return &models, nil
+	return &configurations, nil
 }

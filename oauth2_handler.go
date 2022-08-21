@@ -19,16 +19,16 @@ type Oauth2ActionConfig struct {
 type OAuth2Handler struct {
 	OAuth2Service OAuth2Service
 	SystemError   int
-	Error         func(context.Context, string)
+	Error         func(context.Context, string, ...map[string]interface{})
 	Config        Oauth2ActionConfig
 	Log           func(ctx context.Context, resource string, action string, success bool, desc string) error
 }
 
-func NewDefaultOAuth2Handler(oauth2Service OAuth2Service, systemError int, logError func(context.Context, string)) *OAuth2Handler {
+func NewDefaultOAuth2Handler(oauth2Service OAuth2Service, systemError int, logError func(context.Context, string, ...map[string]interface{})) *OAuth2Handler {
 	return NewOAuth2Handler(oauth2Service, systemError, logError, nil)
 }
 
-func NewOAuth2Handler(oauth2Service OAuth2Service, systemError int, logError func(context.Context, string), writeLog func(context.Context, string, string, bool, string) error, options ...Oauth2ActionConfig) *OAuth2Handler {
+func NewOAuth2Handler(oauth2Service OAuth2Service, systemError int, logError func(context.Context, string, ...map[string]interface{}), writeLog func(context.Context, string, string, bool, string) error, options ...Oauth2ActionConfig) *OAuth2Handler {
 	var c Oauth2ActionConfig
 	if len(options) >= 1 {
 		conf := options[0]
