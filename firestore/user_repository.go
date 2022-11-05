@@ -5,8 +5,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/core-go/auth"
-	"github.com/core-go/oauth2"
 	"strings"
+
+	"github.com/core-go/oauth2"
 )
 
 type UserRepository struct {

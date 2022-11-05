@@ -48,7 +48,7 @@ func (s *ConfigurationRepository) GetConfiguration(ctx context.Context, id strin
 	k.ClientId, err = s.OAuth2UserRepositories[id].GetRequestTokenOAuth(ctx, model.ClientId, model.ClientSecret)
 	return k, clientId, err
 }
-func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
+func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) ([]oauth2.Configuration, error) {
 	var models []oauth2.Configuration
 	var model oauth2.Configuration
 	filter := expression.Equal(expression.Name(s.Status), expression.Value(s.Active))
@@ -68,5 +68,5 @@ func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oau
 	if err != nil {
 		return nil, err
 	}
-	return &models, nil
+	return models, nil
 }

@@ -50,11 +50,11 @@ func (f *FacebookUserRepository) GetUserFromOAuth2(ctx context.Context, urlRedir
 	user.Email = infoFacebook.Email
 
 	if infoFacebook.Gender == "male" {
-		user.Gender = GenderMale
+		g := "M"
+		user.Gender = &g
 	} else if infoFacebook.Gender == "female" {
-		user.Gender = GenderFemale
-	} else {
-		user.Gender = GenderUnknown
+		g := "F"
+		user.Gender = &g
 	}
 	user.Picture = infoFacebook.Picture.Data.Url
 	return &user, accessToken, nil

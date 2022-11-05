@@ -3,9 +3,10 @@ package firestore
 import (
 	"cloud.google.com/go/firestore"
 	"context"
-	"github.com/core-go/oauth2"
 	"google.golang.org/api/iterator"
 	"strings"
+
+	"github.com/core-go/auth/oauth2"
 )
 
 type ConfigurationRepository struct {
@@ -43,7 +44,7 @@ func (s *ConfigurationRepository) GetConfiguration(ctx context.Context, sourceTy
 	k.ClientId, err = s.OAuth2UserRepositories[sourceType].GetRequestTokenOAuth(ctx, model.ClientId, model.ClientSecret)
 	return k, clientId, err
 }
-func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
+func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) ([]oauth2.Configuration, error) {
 	arr := make([]oauth2.Configuration, 0)
 	q := s.Collection.Where(s.Status, "=", s.Active)
 	iter := q.Documents(ctx)
@@ -62,5 +63,5 @@ func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oau
 		}
 		arr = append(arr, configuration)
 	}
-	return &arr, nil
+	return arr, nil
 }

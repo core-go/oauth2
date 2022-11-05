@@ -25,9 +25,9 @@ func UserToMap(ctx context.Context, id string, user User, genderMapper OAuth2Gen
 	if len(c.MiddleName) > 0 && len(user.MiddleName) > 0 {
 		userMap[c.MiddleName] = user.MiddleName
 	}
-	if user.Gender != GenderUnknown && len(c.Gender) > 0 {
+	if len(c.Gender) > 0 && user.Gender != nil {
 		if genderMapper != nil {
-			userMap[c.Gender] = genderMapper.Map(ctx, user.Gender)
+			userMap[c.Gender] = genderMapper.Map(ctx, *user.Gender)
 		} else  {
 			userMap[c.Gender] = user.Gender
 		}

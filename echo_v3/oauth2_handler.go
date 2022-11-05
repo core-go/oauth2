@@ -3,12 +3,13 @@ package echo
 import (
 	"context"
 	"encoding/json"
-	"github.com/core-go/oauth2"
 	"github.com/labstack/echo"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/core-go/oauth2"
 )
 
 type OAuth2Handler struct {
@@ -112,7 +113,7 @@ func (h *OAuth2Handler) Authenticate(ctx echo.Context) error {
 		ctx2 = context.WithValue(ctx2, h.Config.Ip, ip)
 		ctx.SetRequest(r.WithContext(ctx2))
 	}
-	result, err := h.OAuth2Service.Authenticate(r.Context(), request, authorization)
+	result, err := h.OAuth2Service.Authenticate(r.Context(), &request, authorization)
 	if err != nil {
 		result.Status = h.SystemError
 		if h.Error != nil {

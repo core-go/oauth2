@@ -63,7 +63,7 @@ func (g *MicrosoftUserRepository) GetUserFromOAuth2(ctx context.Context, urlRedi
 	user.GivenName = infoMicrosoft.GivenName
 	user.FamilyName = infoMicrosoft.Surname
 	user.Email = infoMicrosoft.Email
-	user.Gender = GenderUnknown
+	// user.Gender = GenderUnknown
 	return &user, accessToken, nil
 }
 

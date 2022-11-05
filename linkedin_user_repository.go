@@ -60,7 +60,7 @@ func (l *LinkedInUserRepository) GetUserFromOAuth2(ctx context.Context, urlRedir
 	user.FamilyName = infoLinkedIn.LastName
 	user.DisplayName = infoLinkedIn.LastName + " " + infoLinkedIn.FirstName
 	user.Email = infoLinkedIn.Elements[0].Email.EmailAddress
-	user.Gender = GenderUnknown
+	// user.Gender = GenderUnknown
 	return &user, accessToken, nil
 }
 

@@ -3,13 +3,14 @@ package twitter
 import (
 	"context"
 	"encoding/json"
-	"github.com/core-go/oauth2"
 	"github.com/dghubble/oauth1"
 	"github.com/dghubble/oauth1/twitter"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/core-go/oauth2"
 )
 
 type TwitterUserRepository struct {
@@ -64,7 +65,7 @@ func (g *TwitterUserRepository) GetUserFromOAuth2(ctx context.Context, urlRedire
 	user.DisplayName = t.ScreenName
 	user.Picture = t.Picture
 	user.Email = t.ScreenName
-	user.Gender = oauth2.GenderUnknown
+	// user.Gender = oauth2.GenderUnknown
 	return &user, accessToken.Token, nil
 }
 

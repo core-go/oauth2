@@ -62,7 +62,7 @@ func (s *DropboxUserRepository) GetUserFromOAuth2(ctx context.Context, urlRedire
 	user.FamilyName = infoDropbox.Name.SurName
 	user.Email = infoDropbox.Email
 	user.Picture = infoDropbox.Picture
-	user.Gender = GenderUnknown
+	// user.Gender = GenderUnknown
 	return &user, accessToken, nil
 }
 

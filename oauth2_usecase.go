@@ -6,20 +6,20 @@ import (
 	"strings"
 )
 
-type DefaultOAuth2Service struct {
+type OAuth2UseCase struct {
 	Status                  auth.Status
 	OAuth2UserRepositories  map[string]OAuth2UserRepository
 	UserRepositories        map[string]UserRepository
 	ConfigurationRepository ConfigurationRepository
 	Generate                func(ctx context.Context) (string, error)
-	TokenService            TokenService
+	TokenService            TokenPort
 	TokenConfig             auth.TokenConfig
 	PayloadConfig           auth.PayloadConfig
 	Privileges              func(ctx context.Context, id string) ([]auth.Privilege, error)
 	AccessTime              func(ctx context.Context, id string) (*auth.AccessTime, error)
 }
 
-func NewOAuth2Service(status auth.Status, oauth2UserRepositories map[string]OAuth2UserRepository, userRepositories map[string]UserRepository, configurationRepository ConfigurationRepository, generate func(context.Context) (string, error), tokenService TokenService, tokenConfig auth.TokenConfig, privileges func(context.Context, string) ([]auth.Privilege, error), options ...func(context.Context, string) (*auth.AccessTime, error)) *DefaultOAuth2Service {
+func NewOAuth2Service(status auth.Status, oauth2UserRepositories map[string]OAuth2UserRepository, userRepositories map[string]UserRepository, configurationRepository ConfigurationRepository, generate func(context.Context) (string, error), tokenService TokenPort, tokenConfig auth.TokenConfig, privileges func(context.Context, string) ([]auth.Privilege, error), options ...func(context.Context, string) (*auth.AccessTime, error)) *OAuth2UseCase {
 	if generate == nil {
 		panic("Generate cannot be nil")
 	}
@@ -27,7 +27,7 @@ func NewOAuth2Service(status auth.Status, oauth2UserRepositories map[string]OAut
 	if len(options) >= 1 {
 		loadAccessTime = options[0]
 	}
-	return &DefaultOAuth2Service{
+	return &OAuth2UseCase{
 		Status:                  status,
 		OAuth2UserRepositories:  oauth2UserRepositories,
 		UserRepositories:        userRepositories,
@@ -39,16 +39,16 @@ func NewOAuth2Service(status auth.Status, oauth2UserRepositories map[string]OAut
 		AccessTime:              loadAccessTime,
 	}
 }
-func (s *DefaultOAuth2Service) Configurations(ctx context.Context) (*[]Configuration, error) {
+func (s *OAuth2UseCase) Configurations(ctx context.Context) ([]Configuration, error) {
 	models, err := s.ConfigurationRepository.GetConfigurations(ctx)
 	return models, err
 }
-func (s *DefaultOAuth2Service) Configuration(ctx context.Context, id string) (*Configuration, error) {
+func (s *OAuth2UseCase) Configuration(ctx context.Context, id string) (*Configuration, error) {
 	model, _, err := s.ConfigurationRepository.GetConfiguration(ctx, id)
 	return model, err
 }
 
-func (s *DefaultOAuth2Service) Authenticate(ctx context.Context, info OAuth2Info, authorization string) (auth.AuthResult, error) {
+func (s *OAuth2UseCase) Authenticate(ctx context.Context, info *OAuth2Info, authorization string) (auth.AuthResult, error) {
 	result := auth.AuthResult{Status: s.Status.Fail}
 	var linkUserId = ""
 	if info.Link {
@@ -81,14 +81,14 @@ func (s *DefaultOAuth2Service) Authenticate(ctx context.Context, info OAuth2Info
 	}
 	return result, nil
 }
-func (s *DefaultOAuth2Service) getStringValue(tokenData interface{}, field string) string {
+func (s *OAuth2UseCase) getStringValue(tokenData interface{}, field string) string {
 	if authorizationToken, ok := tokenData.(map[string]interface{}); ok {
 		value, _ := authorizationToken[field].(string)
 		return value
 	}
 	return ""
 }
-func (s *DefaultOAuth2Service) buildResult(ctx context.Context, id, email, displayName string, sourceType string, accessToken string, newUser bool) (auth.AuthResult, error) {
+func (s *OAuth2UseCase) buildResult(ctx context.Context, id, email, displayName string, sourceType string, accessToken string, newUser bool) (auth.AuthResult, error) {
 	user := auth.AccessTime{}
 	result := auth.AuthResult{Status: s.Status.Error}
 	if s.AccessTime != nil {
@@ -125,8 +125,8 @@ func (s *DefaultOAuth2Service) buildResult(ctx context.Context, id, email, displ
 	var account auth.UserAccount
 	account.Username = email
 	account.Id = id
-	account.Contact = email
-	account.DisplayName = displayName
+	account.Contact = &email
+	account.DisplayName = &displayName
 	account.Token = token
 	account.TokenExpiredTime = &tokenExpiredTime
 
@@ -141,7 +141,7 @@ func (s *DefaultOAuth2Service) buildResult(ctx context.Context, id, email, displ
 	result.User = &account
 	return result, nil
 }
-func (s *DefaultOAuth2Service) processAccount(ctx context.Context, data OAuth2Info, integration Configuration, linkUserId string) (auth.AuthResult, error) {
+func (s *OAuth2UseCase) processAccount(ctx context.Context, data *OAuth2Info, integration Configuration, linkUserId string) (auth.AuthResult, error) {
 	code := data.Code
 	urlRedirect := data.RedirectUri
 	clientSecret := integration.ClientSecret
@@ -152,10 +152,10 @@ func (s *DefaultOAuth2Service) processAccount(ctx context.Context, data OAuth2In
 		result := auth.AuthResult{Status: s.Status.Error}
 		return result, err
 	}
-	return s.checkAccount(ctx, *user, accessToken, linkUserId, data.Id)
+	return s.checkAccount(ctx, user, accessToken, linkUserId, data.Id)
 }
 
-func (s *DefaultOAuth2Service) checkAccount(ctx context.Context, user User, accessToken string, linkUserId string, types string) (auth.AuthResult, error) {
+func (s *OAuth2UseCase) checkAccount(ctx context.Context, user *User, accessToken string, linkUserId string, types string) (auth.AuthResult, error) {
 	personRepository := s.UserRepositories[types]
 	eId, disable, suspended, er0 := personRepository.GetUser(ctx, user.Email) //i
 	result := auth.AuthResult{Status: s.Status.Error}
@@ -224,8 +224,8 @@ func (s *DefaultOAuth2Service) checkAccount(ctx context.Context, user User, acce
 }
 func BuildPayload(id, email string, c auth.PayloadConfig) map[string]interface{} {
 	m := make(map[string]interface{})
-	if len(c.UserId) > 0 {
-		m[c.UserId] = id
+	if len(c.Id) > 0 {
+		m[c.Id] = id
 	}
 	if len(c.Username) > 0 {
 		m[c.Username] = email

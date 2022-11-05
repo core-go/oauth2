@@ -50,7 +50,7 @@ func (g *AmazonUserRepository) GetUserFromOAuth2(ctx context.Context, urlRedirec
 	user.Account = infoAmazon.UserId
 	user.DisplayName = infoAmazon.Name
 	user.Email = infoAmazon.Email
-	user.Gender = GenderUnknown
+	// user.Gender = GenderUnknown
 	return &user, accessToken, nil
 }
 

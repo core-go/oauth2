@@ -47,7 +47,7 @@ func (s *ConfigurationRepository) GetConfiguration(ctx context.Context, id strin
 	k.ClientId, err = s.OAuth2UserRepositories[id].GetRequestTokenOAuth(ctx, model.ClientId, model.ClientSecret)
 	return k, clientId, err
 }
-func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oauth2.Configuration, error) {
+func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) ([]oauth2.Configuration, error) {
 	var configurations []oauth2.Configuration
 	query := bson.M{}
 	cursor, er1 := s.Collection.Find(ctx, query)
@@ -58,5 +58,5 @@ func (s *ConfigurationRepository) GetConfigurations(ctx context.Context) (*[]oau
 	if er2 != nil {
 		return nil, er2
 	}
-	return &configurations, nil
+	return configurations, nil
 }

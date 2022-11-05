@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/core-go/auth"
-	"github.com/core-go/oauth2"
 	"github.com/gocql/gocql"
+
+	"github.com/core-go/oauth2"
 )
 
 type UserRepository struct {

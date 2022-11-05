@@ -118,7 +118,7 @@ func (h *OAuth2Handler) Authenticate(w http.ResponseWriter, r *http.Request) {
 		ctx = context.WithValue(ctx, h.Config.Ip, ip)
 		r = r.WithContext(ctx)
 	}
-	result, err := h.OAuth2Service.Authenticate(r.Context(), request, authorization)
+	result, err := h.OAuth2Service.Authenticate(r.Context(), &request, authorization)
 	if err != nil {
 		result.Status = h.SystemError
 		if h.Error != nil {

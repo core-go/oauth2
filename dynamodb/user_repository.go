@@ -8,9 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 	"github.com/core-go/auth"
 	dyn "github.com/core-go/dynamodb"
-	"github.com/core-go/oauth2"
 	"strings"
 	"time"
+
+	"github.com/core-go/oauth2"
 )
 
 type UserRepository struct {

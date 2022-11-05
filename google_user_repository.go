@@ -44,7 +44,7 @@ func (g *GoogleUserRepository) GetUserFromOAuth2(ctx context.Context, urlRedirec
 	user.DisplayName = infoGoogle.Name
 	user.Email = infoGoogle.Email
 	user.Picture = infoGoogle.Picture
-	user.Gender = GenderUnknown
+	// user.Gender = GenderUnknown
 	return &user, accessToken, nil
 }
 

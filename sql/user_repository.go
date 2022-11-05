@@ -41,7 +41,7 @@ type UserRepository struct {
 	Status          *auth.UserStatusConfig
 	GenderMapper    oauth2.OAuth2GenderMapper
 	Schema          *oauth2.OAuth2SchemaConfig
-	BuildParam      func(i int) string
+	BuildParam      func(int) string
 }
 
 func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedStatus string, services []string, c oauth2.OAuth2SchemaConfig, status *auth.UserStatusConfig, options ...oauth2.OAuth2GenderMapper) *UserRepository {
