@@ -28,16 +28,6 @@ type UserRepository struct {
 	Prefix          string
 	ActivatedStatus string
 	Services        []string
-	StatusName      string
-	UserIdName      string
-	UserName        string
-	EmailName       string
-	OAuth2EmailName string
-	AccountName     string
-	ActiveName      string
-
-	updatedTimeName string
-	updatedByName   string
 	Status          *auth.UserStatusConfig
 	GenderMapper    oauth2.OAuth2GenderMapper
 	Schema          *oauth2.OAuth2SchemaConfig
@@ -49,8 +39,8 @@ func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedSt
 	if len(options) >= 1 {
 		genderMapper = options[0]
 	}
-	c.UserId = strings.ToLower(c.UserId)
-	c.UserName = strings.ToLower(c.UserName)
+	c.Id = strings.ToLower(c.Id)
+	c.Username = strings.ToLower(c.Username)
 	c.Email = strings.ToLower(c.Email)
 	c.Status = strings.ToLower(c.Status)
 	c.OAuth2Email = strings.ToLower(c.OAuth2Email)
@@ -74,8 +64,8 @@ func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedSt
 		s = append(s, strings.ToLower(sv))
 	}
 
-	if len(c.UserName) == 0 {
-		c.UserName = "username"
+	if len(c.Username) == 0 {
+		c.Username = "username"
 	}
 	if len(c.Email) == 0 {
 		c.Email = "email"
@@ -104,8 +94,6 @@ func NewUserRepositoryByConfig(db *sql.DB, tableName, prefix string, activatedSt
 		Services:        s,
 		GenderMapper:    genderMapper,
 		Schema:          &c,
-		updatedTimeName: c.UpdatedTime,
-		updatedByName:   c.UpdatedBy,
 		Status:          status,
 	}
 	return m
@@ -133,13 +121,7 @@ func NewUserRepository(db *sql.DB, tableName, prefix, activatedStatus string, se
 		TableName:       tableName,
 		Prefix:          prefix,
 		ActivatedStatus: activatedStatus,
-		StatusName:      "status",
 		Services:        services,
-		UserName:        "username",
-		EmailName:       "email",
-		OAuth2EmailName: "email",
-		AccountName:     "account",
-		ActiveName:      "active",
 		Status:          status,
 		GenderMapper:    genderMapper,
 	}
@@ -161,8 +143,8 @@ func (s *UserRepository) GetUser(ctx context.Context, email string) (string, boo
 	columns := make([]interface{}, 0)
 	values := make([]interface{}, 0)
 	i := 0
-	columns = append(columns, s.Schema.UserId, s.Schema.Status, s.TableName,
-		s.Schema.UserName, s.BuildParam(i),
+	columns = append(columns, s.Schema.Id, s.Schema.Status, s.TableName,
+		s.Schema.Username, s.BuildParam(i),
 		s.Schema.Email, s.BuildParam(i+1), s.Prefix+s.Schema.OAuth2Email, s.BuildParam(i+2))
 	values = append(values, email, email, email)
 	var where strings.Builder
@@ -225,7 +207,7 @@ func (s *UserRepository) GetUser(ctx context.Context, email string) (string, boo
 			suspended = true
 		}
 	}
-	return string(arr[s.Schema.UserId].([]byte)), disable, suspended, nil
+	return string(arr[s.Schema.Id].([]byte)), disable, suspended, nil
 }
 
 func (s *UserRepository) Update(ctx context.Context, id, email, account string) (bool, error) {
@@ -235,14 +217,14 @@ func (s *UserRepository) Update(ctx context.Context, id, email, account string) 
 	user[s.Prefix+s.Schema.Account] = account
 	user[s.Prefix+s.Schema.Active] = true
 
-	if len(s.updatedTimeName) > 0 {
-		user[s.updatedTimeName] = time.Now()
+	if len(s.Schema.UpdatedTime) > 0 {
+		user[s.Schema.UpdatedTime] = time.Now()
 	}
-	if len(s.updatedByName) > 0 {
-		user[s.updatedByName] = id
+	if len(s.Schema.UpdatedBy) > 0 {
+		user[s.Schema.UpdatedBy] = id
 	}
 
-	query, values := BuildUpdate(s.TableName, user, s.Schema.UserId, id, s.BuildParam)
+	query, values := BuildUpdate(s.TableName, user, s.Schema.Id, id, s.BuildParam)
 	result, err1 := s.DB.ExecContext(ctx, query, values...)
 	if err1 != nil {
 		return false, err1
@@ -298,9 +280,8 @@ func handleDuplicate(driver string, err error) (bool, error) {
 
 func (s *UserRepository) userToMap(ctx context.Context, id string, user oauth2.User) map[string]interface{} {
 	userMap := oauth2.UserToMap(ctx, id, user, s.GenderMapper, s.Schema)
-	//userMap := User{}
-	userMap[s.Schema.UserId] = id
-	userMap[s.Schema.UserName] = user.Email
+	userMap[s.Schema.Id] = id
+	userMap[s.Schema.Username] = user.Email
 	userMap[s.Schema.Status] = s.ActivatedStatus
 
 	userMap[s.Prefix+s.Schema.OAuth2Email] = user.Email

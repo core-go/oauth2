@@ -15,4 +15,6 @@ type User struct {
 	DateOfBirth *time.Time `yaml:"date_of_birth" mapstructure:"date_of_birth" json:"dateOfBirth,omitempty" gorm:"column:dateofbirth" bson:"dateOfBirth,omitempty" dynamodbav:"dateOfBirth,omitempty" firestore:"dateOfBirth,omitempty"`
 	Gender      *string    `yaml:"gender" mapstructure:"gender" json:"gender,omitempty" gorm:"column:gender" bson:"gender,omitempty" dynamodbav:"gender,omitempty" firestore:"gender,omitempty"`
 	MiddleName  string     `yaml:"middle_name" mapstructure:"middle_name" json:"middleName,omitempty" gorm:"column:middlename" bson:"middleName,omitempty" dynamodbav:"middleName,omitempty" firestore:"middleName,omitempty"`
+	JobTitle    string     `yaml:"job_title" mapstructure:"job_title" json:"jobTitle,omitempty" gorm:"column:jobTitle" bson:"jobTitle,omitempty" dynamodbav:"jobTitle,omitempty" firestore:"jobTitle,omitempty"`
+	Language    string     `yaml:"language" mapstructure:"language" json:"language,omitempty" gorm:"column:language" bson:"language,omitempty" dynamodbav:"language,omitempty" firestore:"language,omitempty"`
 }
