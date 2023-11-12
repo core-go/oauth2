@@ -1,16 +1,14 @@
 package sql
 
 type SchemaConfig struct {
-	Id       string `yaml:"id" mapstructure:"id"`
-	Username string `yaml:"username" mapstructure:"username"`
-	Email    string `yaml:"email" mapstructure:"email"`
-	Status   string `yaml:"status" mapstructure:"status"`
+	Id            string `yaml:"id" mapstructure:"id"`
+	Username      string `yaml:"username" mapstructure:"username"`
+	PrincipalName string `yaml:"principal_name" mapstructure:"principal_name"`
+	Status        string `yaml:"status" mapstructure:"status"`
 
 	DisplayName string `yaml:"display_name" mapstructure:"display_name"`
-
 	GivenName   string `yaml:"given_name" mapstructure:"given_name"`
-	MiddleName  string `yaml:"middle_name" mapstructure:"middle_name"`
-	FamilyName  string `yaml:"family_name" mapstructure:"family_name"`
+	Surname     string `yaml:"surname" mapstructure:"surname"`
 
 	JobTitle    string `yaml:"job_title" mapstructure:"job_title" json:"jobTitle,omitempty" gorm:"column:jobTitle" bson:"jobTitle,omitempty" dynamodbav:"jobTitle,omitempty" firestore:"jobTitle,omitempty"`
 	Language    string `yaml:"language" mapstructure:"language" json:"language,omitempty" gorm:"column:language" bson:"language,omitempty" dynamodbav:"language,omitempty" firestore:"language,omitempty"`

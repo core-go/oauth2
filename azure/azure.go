@@ -11,8 +11,6 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/lestrrat-go/jwx/jwa"
 	"github.com/lestrrat-go/jwx/jwk"
-
-	"github.com/core-go/oauth2"
 )
 
 type Config struct {
@@ -24,7 +22,7 @@ type Config struct {
 
 type UserRepository interface {
 	Exist(ctx context.Context, id string) (bool, error)
-	Insert(ctx context.Context, id string, user *oauth2.User) (bool, error)
+	Insert(ctx context.Context, id string, user *AzureUser) (bool, error)
 }
 
 type Authenticator struct {
@@ -80,7 +78,7 @@ func (a Authenticator) Authenticate(ctx context.Context, authorization string) (
 		return nil, false, er3
 	}
 
-	if exist {
+	if !exist {
 		azureUser, er4 := a.GetUserByToken(ctx, authorization)
 		if er4 != nil {
 			if strings.Contains(er4.Error(), expired) {
@@ -90,18 +88,7 @@ func (a Authenticator) Authenticate(ctx context.Context, authorization string) (
 		}
 		displayName = azureUser.DisplayName
 		userId = azureUser.Id
-		user := &oauth2.User{
-			Id:          userId,
-			Account:     userId,
-			Email:       azureUser.UserPrincipalName,
-			Phone:       azureUser.MobilePhone,
-			DisplayName: displayName,
-			FamilyName:  azureUser.Surname,
-			GivenName:   azureUser.GivenName,
-			JobTitle:    azureUser.JobTitle,
-			Language:    azureUser.PreferredLanguage,
-		}
-		ok, er5 := a.UserRepository.Insert(ctx, user.Id, user)
+		ok, er5 := a.UserRepository.Insert(ctx, userId, azureUser)
 		if er5 != nil {
 			return nil, false, er5
 		}
@@ -120,14 +107,12 @@ func (a Authenticator) Authenticate(ctx context.Context, authorization string) (
 		}
 		account.Privileges = privileges
 	}
-
 	payload := map[string]interface{}{a.Id: azureID}
-
-	ourToken, er7 := a.GenerateToken(payload, a.TokenConfig.Secret, a.TokenConfig.Expires)
+	token, er7 := a.GenerateToken(payload, a.TokenConfig.Secret, a.TokenConfig.Expires)
 	if er7 != nil {
 		return nil, false, er7
 	}
-	account.Token = ourToken
+	account.Token = token
 	return account, false, nil
 }
 

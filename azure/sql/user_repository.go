@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/core-go/oauth2"
+	"github.com/core-go/oauth2/azure"
 	"reflect"
 	"strconv"
 	"strings"
@@ -32,12 +32,11 @@ type UserRepository struct {
 func NewUserRepositoryByConfig(db *sql.DB, tableName, activatedStatus string, c SchemaConfig) *UserRepository {
 	c.Id = strings.ToLower(c.Id)
 	c.Username = strings.ToLower(c.Username)
-	c.Email = strings.ToLower(c.Email)
+	c.PrincipalName = strings.ToLower(c.PrincipalName)
 	c.Status = strings.ToLower(c.Status)
 	c.DisplayName = strings.ToLower(c.DisplayName)
 	c.GivenName = strings.ToLower(c.GivenName)
-	c.MiddleName = strings.ToLower(c.MiddleName)
-	c.FamilyName = strings.ToLower(c.FamilyName)
+	c.Surname = strings.ToLower(c.Surname)
 	c.CreatedTime = strings.ToLower(c.CreatedTime)
 	c.CreatedBy = strings.ToLower(c.CreatedBy)
 	c.UpdatedTime = strings.ToLower(c.UpdatedTime)
@@ -47,8 +46,8 @@ func NewUserRepositoryByConfig(db *sql.DB, tableName, activatedStatus string, c 
 	if len(c.Username) == 0 {
 		c.Username = "username"
 	}
-	if len(c.Email) == 0 {
-		c.Email = "email"
+	if len(c.PrincipalName) == 0 {
+		c.PrincipalName = "email"
 	}
 	if len(c.Status) == 0 {
 		c.Status = "status"
@@ -66,11 +65,10 @@ func NewUserRepositoryByConfig(db *sql.DB, tableName, activatedStatus string, c 
 	return m
 }
 
-func NewUserRepository(db *sql.DB, tableName, activatedStatus string, displayName, givenName, familyName, middleName string) *UserRepository {
+func NewUserRepository(db *sql.DB, tableName, activatedStatus string, displayName, givenName, surname string) *UserRepository {
 	displayName = strings.ToLower(displayName)
 	givenName = strings.ToLower(givenName)
-	familyName = strings.ToLower(familyName)
-	middleName = strings.ToLower(middleName)
+	surname = strings.ToLower(surname)
 
 	build := getBuild(db)
 	driver := getDriver(db)
@@ -81,22 +79,22 @@ func NewUserRepository(db *sql.DB, tableName, activatedStatus string, displayNam
 		TableName:       tableName,
 		ActivatedStatus: activatedStatus,
 	}
-	if len(displayName) > 0 || len(givenName) > 0 || len(middleName) > 0 || len(familyName) > 0 {
+	if len(displayName) > 0 || len(givenName) > 0 || len(surname) > 0 {
 		c := &SchemaConfig{}
 		c.DisplayName = displayName
 		c.GivenName = givenName
-		c.FamilyName = familyName
+		c.Surname = surname
 		c.Status = "status"
 		c.Username = "username"
-		c.Email = "email"
+		c.PrincipalName = "email"
 		m.Schema = c
 	}
 	return m
 }
 
-func (s *UserRepository) Exist(ctx context.Context, email string) (bool, error) {
-	query := fmt.Sprintf(`select %s from %s where %s = %s`, s.Schema.Id, s.TableName, s.Schema.Id, email)
-	rows, err := s.DB.QueryContext(ctx, query, email)
+func (s *UserRepository) Exist(ctx context.Context, id string) (bool, error) {
+	query := fmt.Sprintf(`select %s from %s where %s = %s`, s.Schema.Id, s.TableName, s.Schema.Id, s.BuildParam(1))
+	rows, err := s.DB.QueryContext(ctx, query, id)
 	if err != nil {
 		return false, err
 	}
@@ -107,14 +105,14 @@ func (s *UserRepository) Exist(ctx context.Context, email string) (bool, error) 
 	return false, nil
 }
 
-func (s *UserRepository) Insert(ctx context.Context, id string, personInfo oauth2.User) (bool, error) {
+func (s *UserRepository) Insert(ctx context.Context, id string, personInfo *azure.AzureUser) (bool, error) {
 	user := s.userToMap(id, personInfo)
 	query, values := BuildQuery(s.TableName, user, s.BuildParam)
 	_, err := s.DB.ExecContext(ctx, query, values...)
 	if err != nil {
 		return handleDuplicate(s.Driver, err)
 	}
-	return false, err
+	return true, err
 }
 
 func handleDuplicate(driver string, err error) (bool, error) {
@@ -149,14 +147,14 @@ func handleDuplicate(driver string, err error) (bool, error) {
 	}
 }
 
-func (s *UserRepository) userToMap(id string, user oauth2.User) map[string]interface{} {
+func (s *UserRepository) userToMap(id string, user *azure.AzureUser) map[string]interface{} {
 	userMap := UserToMap(id, user, s.Schema)
 	userMap[s.Schema.Id] = id
 	if len(s.Schema.Username) > 0 {
-		userMap[s.Schema.Username] = user.Email
+		userMap[s.Schema.Username] = user.UserPrincipalName
 	}
-	if len(s.Schema.Email) > 0 {
-		userMap[s.Schema.Email] = user.Email
+	if len(s.Schema.PrincipalName) > 0 {
+		userMap[s.Schema.PrincipalName] = user.UserPrincipalName
 	}
 	userMap[s.Schema.Status] = s.ActivatedStatus
 	return userMap
@@ -173,12 +171,12 @@ func BuildQuery(tableName string, user map[string]interface{}, buildParam func(i
 	numCol := len(cols)
 	var arrValue []string
 	for i := 0; i < numCol; i++ {
-		arrValue = append(arrValue, buildParam(i))
+		arrValue = append(arrValue, buildParam(i+1))
 	}
 	value := fmt.Sprintf("(%v)", strings.Join(arrValue, ","))
 	return fmt.Sprintf("insert into %v %v values %v", tableName, column, value), values
 }
-func UserToMap(id string, user oauth2.User, c *SchemaConfig) map[string]interface{} {
+func UserToMap(id string, user *azure.AzureUser, c *SchemaConfig) map[string]interface{} {
 	userMap := make(map[string]interface{})
 	if c == nil {
 		return userMap
@@ -190,17 +188,14 @@ func UserToMap(id string, user oauth2.User, c *SchemaConfig) map[string]interfac
 	if len(c.GivenName) > 0 && len(user.GivenName) > 0 {
 		userMap[c.GivenName] = user.GivenName
 	}
-	if len(c.MiddleName) > 0 && len(user.MiddleName) > 0 {
-		userMap[c.MiddleName] = user.MiddleName
-	}
-	if len(c.FamilyName) > 0 && len(user.FamilyName) > 0 {
-		userMap[c.FamilyName] = user.FamilyName
+	if len(c.Surname) > 0 && len(user.Surname) > 0 {
+		userMap[c.Surname] = user.Surname
 	}
 	if len(c.JobTitle) > 0 && len(user.JobTitle) > 0 {
 		userMap[c.JobTitle] = user.JobTitle
 	}
-	if len(c.Language) > 0 && len(user.Language) > 0 {
-		userMap[c.Language] = user.Language
+	if len(c.Language) > 0 && len(user.PreferredLanguage) > 0 {
+		userMap[c.Language] = user.PreferredLanguage
 	}
 
 	now := time.Now()
